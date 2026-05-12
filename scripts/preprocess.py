@@ -8,6 +8,8 @@ import pandas as pd
 ROOT = Path(__file__).resolve().parents[1]
 RAW_DIR = ROOT / "data" / "raw"
 PROCESSED_DIR = ROOT / "data" / "processed"
+START_DATE = "2018-01-01"
+END_DATE_EXCLUSIVE = "2025-01-01"
 
 
 def ensure_output_dir() -> None:
@@ -17,7 +19,7 @@ def ensure_output_dir() -> None:
 def save_csv(frame: pd.DataFrame, filename: str) -> Path:
     ensure_output_dir()
     path = PROCESSED_DIR / filename
-    frame.to_csv(path, index=True)
+    frame.to_csv(path, index=False)
     return path
 
 
@@ -49,8 +51,13 @@ def load_market_data() -> pd.DataFrame:
             "Volume": "Volume",
         }
     ).set_index("date").sort_index()
+    jpm.index = pd.to_datetime(jpm.index).normalize()
+
     dgs10 = dgs10.rename(columns={"value": "dgs10"}).set_index("date").sort_index()
+    dgs10.index = pd.to_datetime(dgs10.index).normalize()
+
     vix = vix.rename(columns={"value": "vix"}).set_index("date").sort_index()
+    vix.index = pd.to_datetime(vix.index).normalize()
 
     jpm = jpm[[column for column in ["Open", "High", "Low", "Close", "Adj Close", "Volume"] if column in jpm.columns]]
     dgs10 = dgs10[["dgs10"]]
@@ -58,6 +65,7 @@ def load_market_data() -> pd.DataFrame:
 
     frame = jpm.join(dgs10, how="outer").join(vix, how="outer")
     frame = frame.sort_index()
+    frame = frame[~frame.index.duplicated(keep="first")]
     frame = frame.loc["2018-01-01":"2024-12-31"]
 
     for column in frame.columns:
@@ -70,6 +78,46 @@ def load_market_data() -> pd.DataFrame:
         frame[price_columns] = frame[price_columns].interpolate(limit_direction="both")
 
     return frame
+
+
+def load_dividend_data() -> pd.DataFrame | None:
+    dividend_path = RAW_DIR / "jpm_dividends_2018_2024.csv"
+    if not dividend_path.exists():
+        return None
+
+    dividend_frame = pd.read_csv(dividend_path)
+    if dividend_frame.empty:
+        return None
+
+    if "date" in dividend_frame.columns:
+        dividend_frame["date"] = pd.to_datetime(dividend_frame["date"], errors="coerce", utc=True).dt.tz_convert(None)
+        dividend_frame = dividend_frame.set_index("date")
+    else:
+        dividend_frame = dividend_frame.rename(columns={dividend_frame.columns[0]: "date"})
+        dividend_frame["date"] = pd.to_datetime(dividend_frame["date"], errors="coerce", utc=True).dt.tz_convert(None)
+        dividend_frame = dividend_frame.set_index("date")
+
+    dividend_frame = dividend_frame.sort_index()
+    if dividend_frame.empty or "dividend" not in dividend_frame.columns:
+        return None
+
+    dividend_frame["dividend"] = pd.to_numeric(dividend_frame["dividend"], errors="coerce")
+    dividend_frame = dividend_frame.dropna(subset=["dividend"])
+    if dividend_frame.empty:
+        return None
+
+    quarterly_dividend = dividend_frame["dividend"].resample("QE").sum()
+    dividend_growth_yoy = quarterly_dividend.rolling(4).sum().pct_change(4)
+
+    dividend_features = pd.DataFrame(
+        {
+            "jpm_dividend_ttm": quarterly_dividend.rolling(4).sum(),
+            "jpm_dividend_growth_yoy": dividend_growth_yoy,
+        }
+    )
+    dividend_features = dividend_features.reindex(pd.date_range(START_DATE, END_DATE_EXCLUSIVE, freq="D"), method="ffill")
+    dividend_features.index.name = "date"
+    return dividend_features
 
 
 def score_text(text: str) -> float:
@@ -103,18 +151,26 @@ def score_text(text: str) -> float:
     negative_hits = sum(1 for token in tokens if token in negative_words)
     raw_score = positive_hits - negative_hits
 
-    if raw_score >= 0:
-        return min(1.0, 0.5 + raw_score * 0.1)
-    return max(0.0, 0.5 + raw_score * 0.1)
+    if raw_score == 0:
+        return 0.0
+    return max(-1.0, min(1.0, raw_score / 5.0))
+
+
+def normalize_sentiment_to_unit_interval(series: pd.Series) -> pd.Series:
+    return ((series.clip(-1.0, 1.0) + 1.0) / 2.0).clip(0.0, 1.0)
 
 
 def load_news_data() -> pd.DataFrame | None:
     # Load the available news source and convert article text into a simple sentiment proxy.
-    candidate_files = sorted(list(RAW_DIR.glob("news_*.csv")) + list(RAW_DIR.glob("gdelt_*.csv")))
-    if not candidate_files:
+    candidate_groups = [
+        list(RAW_DIR.glob("alphavantage_*.csv")),
+        list(RAW_DIR.glob("news_*.csv")),
+    ]
+    news_frame_path = next((max(files, key=lambda path: path.stat().st_mtime) for files in candidate_groups if files), None)
+    if news_frame_path is None:
         return None
 
-    news_frame = pd.read_csv(candidate_files[0])
+    news_frame = pd.read_csv(news_frame_path)
     if "publishedAt" not in news_frame.columns:
         return None
 
@@ -134,7 +190,12 @@ def load_news_data() -> pd.DataFrame | None:
         + " "
         + news_frame["content"].fillna("").astype(str)
     )
-    news_frame["sentiment_score"] = news_frame["text_for_sentiment"].apply(score_text)
+    if "sentiment_score" in news_frame.columns:
+        news_frame["sentiment_score"] = pd.to_numeric(news_frame["sentiment_score"], errors="coerce")
+    else:
+        news_frame["sentiment_score"] = news_frame["text_for_sentiment"].apply(score_text)
+
+    news_frame["sentiment_score"] = normalize_sentiment_to_unit_interval(news_frame["sentiment_score"].fillna(0.0))
     news_frame["news_date"] = news_frame["publishedAt"].dt.floor("D")
 
     daily_news = (
@@ -184,6 +245,15 @@ def build_features() -> pd.DataFrame:
     for column in ["jpm_return_1d", "jpm_return_5d", "dgs10_change_1d", "dgs10_momentum_5d", "vix_change_1d"]:
         frame[column] = cap_iqr(frame[column])
 
+    dividend_frame = load_dividend_data()
+    if dividend_frame is not None:
+        frame = frame.join(dividend_frame, how="left")
+        frame["jpm_dividend_ttm"] = frame["jpm_dividend_ttm"].ffill()
+        frame["jpm_dividend_growth_yoy"] = frame["jpm_dividend_growth_yoy"].ffill()
+    else:
+        frame["jpm_dividend_ttm"] = pd.NA
+        frame["jpm_dividend_growth_yoy"] = pd.NA
+
     news_frame = load_news_data()
     if news_frame is not None:
         frame = frame.join(news_frame, how="left")
@@ -215,6 +285,7 @@ def main() -> None:
         "jpm_return_1d",
         "jpm_return_5d",
         "jpm_vol_20d",
+        "jpm_dividend_growth_yoy",
         "dgs10_change_1d",
         "dgs10_momentum_5d",
         "vix_change_1d",
