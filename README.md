@@ -47,16 +47,24 @@ Week 1 downloads and saves:
 
 ### 4. Build Week 2 features
 
-This creates `data/processed/week2_feature_dataset_2018_2024.csv` and `data/processed/week2_feature_dataset_2018_2024.parquet` with aligned JPM, Treasury, VIX, and optional news sentiment features.
+This creates versioned outputs such as `data/processed/week2_feature_dataset_v1.0_YYYYMMDD.csv` and `data/processed/week2_feature_dataset_v1.0_YYYYMMDD.parquet` with the optimized feature set after correlation pruning and IC screening.
+It also creates `data/processed/week2_data_quality_report_v1.0_YYYYMMDD.csv` and `data/processed/week2_data_quality_report_v1.0_YYYYMMDD.pdf`.
+The feature engineering optimization outputs are `data/processed/week2_feature_optimization_report_v1.0_YYYYMMDD.csv`, `data/processed/week2_feature_ic_report_v1.0_YYYYMMDD.csv`, `data/processed/week2_feature_correlation_matrix_v1.0_YYYYMMDD.csv`, and `data/processed/week2_feature_optimization_report_v1.0_YYYYMMDD.pdf`.
 
 Week 2 features include:
 
 - JPM daily returns and rolling volatility
-- Trailing dividend growth features for JPM
+- Trailing dividend yield for JPM using TTM dividend divided by current price
+- 5-day, 20-day, and 60-day historical volatility features
+- Volatility change features based on the 20-day volatility series
 - Treasury rate changes and momentum
 - VIX changes and JPM-VIX rolling correlation
 - News article counts and rolling 0-1 sentiment scores when news CSV files are available
-- IQR clipping on key return and change series to reduce outlier impact
+- A data quality report with per-feature missing rate, min, max, mean, std, and outlier counts
+- Boxplot-based outlier handling with median replacement on flagged values
+- Explicit missing-value rules for price, macro, dividend, and news-derived features
+- Pearson correlation pruning for features with absolute correlation above 0.8
+- IC screening against future 1-week and 1-month JPM returns using a 0.03 absolute threshold
 
 ### 5. Automated scheduling
 

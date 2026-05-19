@@ -1,7 +1,12 @@
 from __future__ import annotations
 
+import logging
 from pathlib import Path
+from datetime import datetime
+import textwrap
 
+import matplotlib.pyplot as plt
+from matplotlib.backends.backend_pdf import PdfPages
 import pandas as pd
 
 
@@ -10,6 +15,64 @@ RAW_DIR = ROOT / "data" / "raw"
 PROCESSED_DIR = ROOT / "data" / "processed"
 START_DATE = "2018-01-01"
 END_DATE_EXCLUSIVE = "2025-01-01"
+PIPELINE_VERSION = "v1.0"
+RUN_DATE = datetime.now().strftime("%Y%m%d")
+
+QUALITY_REPORT_CSV = "week2_data_quality_report"
+QUALITY_REPORT_PDF = "week2_data_quality_report"
+FEATURE_OPTIMIZATION_CSV = "week2_feature_optimization_report"
+FEATURE_OPTIMIZATION_PDF = "week2_feature_optimization_report"
+FEATURE_CORRELATION_CSV = "week2_feature_correlation_matrix"
+FEATURE_SELECTED_DATASET = "week2_feature_dataset"
+FEATURE_IC_REPORT = "week2_feature_ic_report"
+DATASET_OUTPUT_EXTENSION = "csv"
+IC_THRESHOLD = 0.03
+CORR_THRESHOLD = 0.8
+
+
+logger = logging.getLogger("week2_pipeline")
+
+
+def versioned_filename(stem: str, extension: str) -> str:
+    return f"{stem}_{PIPELINE_VERSION}_{RUN_DATE}.{extension}"
+
+
+def cleanup_generated_outputs() -> None:
+    ensure_output_dir()
+    for path in PROCESSED_DIR.glob("week2_*"):
+        if path.is_file() or path.is_symlink():
+            path.unlink()
+
+
+def configure_logging() -> None:
+    if logger.handlers:
+        return
+
+    handler = logging.StreamHandler()
+    handler.setFormatter(logging.Formatter("[%(asctime)s] %(levelname)s %(message)s", datefmt="%Y-%m-%d %H:%M:%S"))
+    logger.addHandler(handler)
+    logger.setLevel(logging.INFO)
+    logger.propagate = False
+
+
+class log_step:
+    def __init__(self, step_name: str):
+        self.step_name = step_name
+        self.started_at = 0.0
+
+    def __enter__(self):
+        self.started_at = datetime.now().timestamp()
+        logger.info("START %s", self.step_name)
+        return self
+
+    def __exit__(self, exc_type, exc, tb):
+        elapsed = datetime.now().timestamp() - self.started_at
+        if exc_type is None:
+            logger.info("DONE %s (%.2fs)", self.step_name, elapsed)
+            return False
+
+        logger.error("FAIL %s (%.2fs): %s", self.step_name, elapsed, exc)
+        return False
 
 
 def ensure_output_dir() -> None:
@@ -23,6 +86,92 @@ def save_csv(frame: pd.DataFrame, filename: str) -> Path:
     return path
 
 
+def build_boxplot_figure(frame: pd.DataFrame) -> plt.Figure:
+    numeric_columns = numeric_feature_columns(frame)
+    if not numeric_columns:
+        raise ValueError("No numeric columns available for boxplot generation")
+
+    fig, axes = plt.subplots(nrows=len(numeric_columns), ncols=1, figsize=(10, max(2.0, 1.6 * len(numeric_columns))), constrained_layout=True)
+    if len(numeric_columns) == 1:
+        axes = [axes]
+
+    for axis, column in zip(axes, numeric_columns):
+        series = pd.to_numeric(frame[column], errors="coerce").dropna()
+        axis.boxplot(series, vert=False, patch_artist=True, boxprops={"facecolor": "#d7e8ff", "color": "#2c5282"}, medianprops={"color": "#c53030", "linewidth": 1.5}, whiskerprops={"color": "#2c5282"}, capprops={"color": "#2c5282"}, flierprops={"marker": "o", "markersize": 3, "markerfacecolor": "#dd6b20", "markeredgecolor": "#dd6b20", "alpha": 0.6})
+        axis.set_title(column, loc="left", fontsize=10)
+        axis.tick_params(axis="x", labelsize=8)
+        axis.set_yticks([])
+
+    fig.suptitle("Week 2 Numeric Feature Boxplots", fontsize=14, fontweight="bold")
+    return fig
+
+
+def save_pdf_report(report_text: str, boxplot_frame: pd.DataFrame, filename: str) -> Path:
+    ensure_output_dir()
+    output_path = PROCESSED_DIR / filename
+
+    with PdfPages(output_path) as pdf:
+        report_fig = plt.figure(figsize=(8.5, 11))
+        report_ax = report_fig.add_axes([0, 0, 1, 1])
+        report_ax.axis("off")
+
+        y = 0.97
+        for line in report_text.splitlines():
+            if not line.strip():
+                y -= 0.02
+                continue
+            wrapped_lines = textwrap.wrap(line, width=92) or [""]
+            for wrapped_line in wrapped_lines:
+                report_fig.text(0.05, y, wrapped_line, ha="left", va="top", fontsize=9)
+                y -= 0.018
+                if y < 0.05:
+                    pdf.savefig(report_fig, bbox_inches="tight")
+                    plt.close(report_fig)
+                    report_fig = plt.figure(figsize=(8.5, 11))
+                    report_ax = report_fig.add_axes([0, 0, 1, 1])
+                    report_ax.axis("off")
+                    y = 0.97
+
+        pdf.savefig(report_fig, bbox_inches="tight")
+        plt.close(report_fig)
+
+        pdf.savefig(build_boxplot_figure(boxplot_frame), bbox_inches="tight")
+
+    return output_path
+
+
+def save_text_pdf_report(report_text: str, filename: str) -> Path:
+    ensure_output_dir()
+    output_path = PROCESSED_DIR / filename
+
+    with PdfPages(output_path) as pdf:
+        report_fig = plt.figure(figsize=(8.5, 11))
+        report_ax = report_fig.add_axes([0, 0, 1, 1])
+        report_ax.axis("off")
+
+        y = 0.97
+        for line in report_text.splitlines():
+            if not line.strip():
+                y -= 0.02
+                continue
+            wrapped_lines = textwrap.wrap(line, width=92) or [""]
+            for wrapped_line in wrapped_lines:
+                report_fig.text(0.05, y, wrapped_line, ha="left", va="top", fontsize=9)
+                y -= 0.018
+                if y < 0.05:
+                    pdf.savefig(report_fig, bbox_inches="tight")
+                    plt.close(report_fig)
+                    report_fig = plt.figure(figsize=(8.5, 11))
+                    report_ax = report_fig.add_axes([0, 0, 1, 1])
+                    report_ax.axis("off")
+                    y = 0.97
+
+        pdf.savefig(report_fig, bbox_inches="tight")
+        plt.close(report_fig)
+
+    return output_path
+
+
 def cap_iqr(series: pd.Series, factor: float = 1.5) -> pd.Series:
     q1 = series.quantile(0.25)
     q3 = series.quantile(0.75)
@@ -32,7 +181,263 @@ def cap_iqr(series: pd.Series, factor: float = 1.5) -> pd.Series:
     return series.clip(lower, upper)
 
 
-def load_market_data() -> pd.DataFrame:
+def boxplot_bounds(series: pd.Series, factor: float = 1.5) -> tuple[float, float]:
+    q1 = series.quantile(0.25)
+    q3 = series.quantile(0.75)
+    iqr = q3 - q1
+    return q1 - factor * iqr, q3 + factor * iqr
+
+
+def numeric_feature_columns(frame: pd.DataFrame) -> list[str]:
+    return [column for column in frame.columns if pd.api.types.is_numeric_dtype(frame[column])]
+
+
+RANGE_RULES: dict[str, tuple[float | None, float | None, str]] = {
+    "vix": (0.0, None, "VIX should be strictly positive"),
+    "jpm_return_1d": (-0.10, 0.10, "One-day JPM return should stay within a reasonable sanity band"),
+    "jpm_return_5d": (-0.10, 0.10, "Five-day JPM return should stay within a reasonable sanity band"),
+}
+
+
+def validate_feature_ranges(frame: pd.DataFrame) -> pd.DataFrame:
+    rows: list[dict[str, object]] = []
+
+    for column, (lower_bound, upper_bound, description) in RANGE_RULES.items():
+        if column not in frame.columns:
+            continue
+
+        series = pd.to_numeric(frame[column], errors="coerce")
+        violation_mask = pd.Series(False, index=series.index)
+        if lower_bound is not None:
+            violation_mask = violation_mask | series.lt(lower_bound)
+        if upper_bound is not None:
+            violation_mask = violation_mask | series.gt(upper_bound)
+
+        violation_count = int(violation_mask.sum())
+        rows.append(
+            {
+                "feature": column,
+                "range_lower": lower_bound,
+                "range_upper": upper_bound,
+                "range_rule": description,
+                "range_violation_count": violation_count,
+                "range_violation_rate": (violation_count / len(series)) if len(series) else 0.0,
+                "range_status": "ok" if violation_count == 0 else "warn",
+            }
+        )
+
+    return pd.DataFrame(rows)
+
+
+def describe_fill_strategy(column: str) -> tuple[str, str]:
+    if column in {"Open", "High", "Low", "Close", "Adj Close", "Volume"}:
+        return (
+            "Interpolation across the daily calendar",
+            "Daily market gaps are usually short and interpolation preserves the price path across non-trading days.",
+        )
+    if column in {"dgs10", "vix"}:
+        return (
+            "Forward fill",
+            "Macro series are observed daily; forward fill keeps the latest known value without looking ahead.",
+        )
+    if column in {"jpm_dividend_ttm", "jpm_dividend_growth_yoy"}:
+        return (
+            "Forward fill after quarterly aggregation",
+            "Dividend values remain in force until the next announcement, so forward fill is the least distortive option.",
+        )
+    if column == "jpm_dividend_yield_ttm":
+        return (
+            "Derived from dividend and price; residual gaps are dropped",
+            "Dividend yield is the standard BSM-style input and should only remain where both trailing dividend and current price exist.",
+        )
+    if column == "news_article_count":
+        return ("Fill with 0", "No matched articles means zero observed news activity.")
+    if column == "news_sentiment_mean":
+        return ("Fill with 0.5", "0.5 is the neutral midpoint of the 0-1 sentiment scale.")
+    if column == "news_sentiment_std":
+        return ("Fill with 0.0", "A single or absent news item implies no dispersion.")
+    if column == "news_7d_article_count":
+        return ("Fill with 0", "The 7-day count should stay at zero when no news is present.")
+    if column == "news_7d_sentiment_mean":
+        return ("Fill with 0.5", "A 7-day rolling sentiment with no observations should stay neutral.")
+    if column == "news_7d_sentiment_trend":
+        return ("Fill with 0.0", "No rolling sentiment change is the safest default when the window is empty.")
+    if column in {
+        "jpm_return_1d",
+        "jpm_return_5d",
+        "jpm_vol_20d",
+        "jpm_vol_5d",
+        "jpm_vol_60d",
+        "jpm_vol_20d_change_1d",
+        "jpm_vol_20d_change_rate_1d",
+        "jpm_ma_20d",
+        "jpm_price_to_ma_20d",
+        "dgs10_change_1d",
+        "dgs10_momentum_5d",
+        "vix_change_1d",
+        "vix_jpm_corr_20d",
+        "rolling_high_20d",
+        "drawdown_20d",
+    }:
+        return (
+            "Drop remaining warm-up rows after feature engineering",
+            "These are rolling features; the earliest rows do not have enough history for a reliable imputation.",
+        )
+    return (
+        "Drop remaining missing rows",
+        "Any residual gaps are treated as incomplete observations and removed before export.",
+    )
+
+
+def summarize_data_quality(frame: pd.DataFrame) -> pd.DataFrame:
+    numeric_columns = numeric_feature_columns(frame)
+    rows: list[dict[str, object]] = []
+
+    for column in numeric_columns:
+        series = pd.to_numeric(frame[column], errors="coerce")
+        observed = series.dropna()
+        total_rows = len(series)
+        missing_count = int(series.isna().sum())
+        missing_rate = (missing_count / total_rows) if total_rows else 0.0
+
+        if observed.empty:
+            lower_bound = upper_bound = float("nan")
+            outlier_count = 0
+            minimum = maximum = mean = std = float("nan")
+        else:
+            lower_bound, upper_bound = boxplot_bounds(observed)
+            outlier_mask = series.lt(lower_bound) | series.gt(upper_bound)
+            outlier_count = int(outlier_mask.sum())
+            minimum = float(observed.min())
+            maximum = float(observed.max())
+            mean = float(observed.mean())
+            std = float(observed.std())
+
+        fill_strategy, fill_reason = describe_fill_strategy(column)
+        rows.append(
+            {
+                "feature": column,
+                "missing_rate": missing_rate,
+                "min": minimum,
+                "max": maximum,
+                "mean": mean,
+                "std": std,
+                "boxplot_lower": lower_bound,
+                "boxplot_upper": upper_bound,
+                "outlier_count": outlier_count,
+                "outlier_rate": (outlier_count / total_rows) if total_rows else 0.0,
+                "fill_strategy": fill_strategy,
+                "fill_reason": fill_reason,
+            }
+        )
+
+    return pd.DataFrame(rows)
+
+
+def replace_boxplot_outliers(frame: pd.DataFrame) -> pd.DataFrame:
+    working = frame.copy()
+
+    for column in numeric_feature_columns(working):
+        series = pd.to_numeric(working[column], errors="coerce")
+        observed = series.dropna()
+        if observed.empty:
+            continue
+
+        lower_bound, upper_bound = boxplot_bounds(observed)
+        outlier_mask = series.lt(lower_bound) | series.gt(upper_bound)
+        if not outlier_mask.any():
+            continue
+
+        inlier_values = observed[(observed >= lower_bound) & (observed <= upper_bound)]
+        replacement_value = float(inlier_values.median()) if not inlier_values.empty else float(observed.median())
+        working.loc[outlier_mask, column] = replacement_value
+
+    return working
+
+
+def apply_missing_value_strategies(frame: pd.DataFrame) -> pd.DataFrame:
+    working = frame.copy()
+
+    price_columns = [column for column in ["Open", "High", "Low", "Close", "Adj Close", "Volume"] if column in working.columns]
+    if price_columns:
+        working[price_columns] = working[price_columns].interpolate(limit_direction="both")
+
+    if "dgs10" in working.columns:
+        working["dgs10"] = working["dgs10"].ffill()
+    if "vix" in working.columns:
+        working["vix"] = working["vix"].ffill()
+
+    if "jpm_dividend_ttm" in working.columns:
+        working["jpm_dividend_ttm"] = working["jpm_dividend_ttm"].ffill()
+    if "jpm_dividend_growth_yoy" in working.columns:
+        working["jpm_dividend_growth_yoy"] = working["jpm_dividend_growth_yoy"].ffill()
+
+    if "news_article_count" in working.columns:
+        working["news_article_count"] = working["news_article_count"].fillna(0)
+    if "news_sentiment_mean" in working.columns:
+        working["news_sentiment_mean"] = working["news_sentiment_mean"].fillna(0.5)
+    if "news_sentiment_std" in working.columns:
+        working["news_sentiment_std"] = working["news_sentiment_std"].fillna(0.0)
+
+    if "news_7d_article_count" in working.columns:
+        working["news_7d_article_count"] = working["news_7d_article_count"].fillna(0)
+    if "news_7d_sentiment_mean" in working.columns:
+        working["news_7d_sentiment_mean"] = working["news_7d_sentiment_mean"].fillna(0.5)
+    if "news_7d_sentiment_trend" in working.columns:
+        working["news_7d_sentiment_trend"] = working["news_7d_sentiment_trend"].fillna(0.0)
+
+    working = working.dropna()
+    return working
+
+
+def load_market_data(apply_fill: bool = True) -> pd.DataFrame:
+    if apply_fill:
+        # Load raw JPM, Treasury, and VIX data and normalize the column names.
+        jpm = pd.read_csv(RAW_DIR / "yahoo_jpm_2018_2024.csv", parse_dates=["Date"])
+        dgs10 = pd.read_csv(RAW_DIR / "fred_DGS10_2018_2024.csv", parse_dates=["date"])
+        vix = pd.read_csv(RAW_DIR / "fred_VIXCLS_2018_2024.csv", parse_dates=["date"])
+
+        jpm = jpm.rename(
+            columns={
+                "Date": "date",
+                "open": "Open",
+                "high": "High",
+                "low": "Low",
+                "close": "Close",
+                "adj close": "Adj Close",
+                "Adj Close": "Adj Close",
+                "volume": "Volume",
+                "Volume": "Volume",
+            }
+        ).set_index("date").sort_index()
+        jpm.index = pd.to_datetime(jpm.index).normalize()
+
+        dgs10 = dgs10.rename(columns={"value": "dgs10"}).set_index("date").sort_index()
+        dgs10.index = pd.to_datetime(dgs10.index).normalize()
+
+        vix = vix.rename(columns={"value": "vix"}).set_index("date").sort_index()
+        vix.index = pd.to_datetime(vix.index).normalize()
+
+        jpm = jpm[[column for column in ["Open", "High", "Low", "Close", "Adj Close", "Volume"] if column in jpm.columns]]
+        dgs10 = dgs10[["dgs10"]]
+        vix = vix[["vix"]]
+
+        frame = jpm.join(dgs10, how="outer").join(vix, how="outer")
+        frame = frame.sort_index()
+        frame = frame[~frame.index.duplicated(keep="first")]
+        frame = frame.loc["2018-01-01":"2024-12-31"]
+
+        for column in frame.columns:
+            frame[column] = pd.to_numeric(frame[column], errors="coerce")
+
+        frame[["dgs10", "vix"]] = frame[["dgs10", "vix"]].ffill()
+
+        price_columns = [column for column in ["Open", "High", "Low", "Close", "Adj Close", "Volume"] if column in frame.columns]
+        if price_columns:
+            frame[price_columns] = frame[price_columns].interpolate(limit_direction="both")
+
+        return frame
+
     # Load raw JPM, Treasury, and VIX data and normalize the column names.
     jpm = pd.read_csv(RAW_DIR / "yahoo_jpm_2018_2024.csv", parse_dates=["Date"])
     dgs10 = pd.read_csv(RAW_DIR / "fred_DGS10_2018_2024.csv", parse_dates=["date"])
@@ -71,11 +476,12 @@ def load_market_data() -> pd.DataFrame:
     for column in frame.columns:
         frame[column] = pd.to_numeric(frame[column], errors="coerce")
 
-    frame[["dgs10", "vix"]] = frame[["dgs10", "vix"]].ffill()
+    if apply_fill:
+        frame[["dgs10", "vix"]] = frame[["dgs10", "vix"]].ffill()
 
-    price_columns = [column for column in ["Open", "High", "Low", "Close", "Adj Close", "Volume"] if column in frame.columns]
-    if price_columns:
-        frame[price_columns] = frame[price_columns].interpolate(limit_direction="both")
+        price_columns = [column for column in ["Open", "High", "Low", "Close", "Adj Close", "Volume"] if column in frame.columns]
+        if price_columns:
+            frame[price_columns] = frame[price_columns].interpolate(limit_direction="both")
 
     return frame
 
@@ -212,91 +618,360 @@ def load_news_data() -> pd.DataFrame | None:
     return daily_news
 
 
-def build_features() -> pd.DataFrame:
-    # Build the daily modeling table used in Week 2.
-    frame = load_market_data()
+def add_market_features(frame: pd.DataFrame) -> pd.DataFrame:
+    working = frame.copy()
+    working["jpm_return_1d"] = working["Adj Close"].pct_change()
+    working["jpm_return_5d"] = working["Adj Close"].pct_change(5)
+    working["jpm_vol_20d"] = working["jpm_return_1d"].rolling(20).std() * (252 ** 0.5)
+    working["jpm_vol_5d"] = working["jpm_return_1d"].rolling(5).std() * (252 ** 0.5)
+    working["jpm_vol_60d"] = working["jpm_return_1d"].rolling(60).std() * (252 ** 0.5)
+    working["jpm_vol_20d_change_1d"] = working["jpm_vol_20d"].diff()
+    working["jpm_vol_20d_change_rate_1d"] = working["jpm_vol_20d"].pct_change()
+    working["jpm_ma_20d"] = working["Adj Close"].rolling(20).mean()
+    working["jpm_price_to_ma_20d"] = working["Adj Close"] / working["jpm_ma_20d"]
+    working["dgs10_change_1d"] = working["dgs10"].diff()
+    working["dgs10_momentum_5d"] = working["dgs10"].diff(5)
+    working["vix_change_1d"] = working["vix"].diff()
+    working["vix_jpm_corr_20d"] = working["jpm_return_1d"].rolling(20).corr(working["vix_change_1d"])
+    working["rolling_high_20d"] = working["Adj Close"].rolling(20).max()
+    working["drawdown_20d"] = working["Adj Close"] / working["rolling_high_20d"] - 1.0
+    return working
 
-    if "Adj Close" not in frame.columns:
-        raise ValueError("JPM raw data is missing an Adj Close column")
-    if "Close" not in frame.columns:
-        raise ValueError("JPM raw data is missing a Close column")
-    if "Open" not in frame.columns:
-        raise ValueError("JPM raw data is missing an Open column")
-    if "High" not in frame.columns:
-        raise ValueError("JPM raw data is missing a High column")
-    if "Low" not in frame.columns:
-        raise ValueError("JPM raw data is missing a Low column")
-    if "Volume" not in frame.columns:
-        frame["Volume"] = 0.0
 
-    frame["jpm_return_1d"] = frame["Adj Close"].pct_change()
-    frame["jpm_return_5d"] = frame["Adj Close"].pct_change(5)
-    frame["jpm_vol_20d"] = frame["jpm_return_1d"].rolling(20).std() * (252 ** 0.5)
-    frame["jpm_ma_20d"] = frame["Adj Close"].rolling(20).mean()
-    frame["jpm_price_to_ma_20d"] = frame["Adj Close"] / frame["jpm_ma_20d"]
-    frame["dgs10_change_1d"] = frame["dgs10"].diff()
-    frame["dgs10_momentum_5d"] = frame["dgs10"].diff(5)
-    frame["vix_change_1d"] = frame["vix"].diff()
-    frame["vix_jpm_corr_20d"] = frame["jpm_return_1d"].rolling(20).corr(frame["vix_change_1d"])
-    frame["rolling_high_20d"] = frame["Adj Close"].rolling(20).max()
-    frame["drawdown_20d"] = frame["Adj Close"] / frame["rolling_high_20d"] - 1.0
-
-    # Week 2 cleanup: cap obvious outliers with IQR clipping.
-    for column in ["jpm_return_1d", "jpm_return_5d", "dgs10_change_1d", "dgs10_momentum_5d", "vix_change_1d"]:
-        frame[column] = cap_iqr(frame[column])
+def attach_optional_features(frame: pd.DataFrame, fill_optional: bool) -> pd.DataFrame:
+    working = frame.copy()
 
     dividend_frame = load_dividend_data()
     if dividend_frame is not None:
-        frame = frame.join(dividend_frame, how="left")
-        frame["jpm_dividend_ttm"] = frame["jpm_dividend_ttm"].ffill()
-        frame["jpm_dividend_growth_yoy"] = frame["jpm_dividend_growth_yoy"].ffill()
+        working = working.join(dividend_frame, how="left")
     else:
-        frame["jpm_dividend_ttm"] = pd.NA
-        frame["jpm_dividend_growth_yoy"] = pd.NA
+        working["jpm_dividend_ttm"] = pd.NA
+        working["jpm_dividend_growth_yoy"] = pd.NA
 
     news_frame = load_news_data()
     if news_frame is not None:
-        frame = frame.join(news_frame, how="left")
-        frame["news_article_count"] = frame["news_article_count"].fillna(0)
-        frame["news_sentiment_mean"] = frame["news_sentiment_mean"].fillna(0.5)
-        frame["news_sentiment_std"] = frame["news_sentiment_std"].fillna(0.0)
+        working = working.join(news_frame, how="left")
     else:
-        frame["news_article_count"] = 0
-        frame["news_sentiment_mean"] = 0.5
-        frame["news_sentiment_std"] = 0.0
+        working["news_article_count"] = 0
+        working["news_sentiment_mean"] = 0.5
+        working["news_sentiment_std"] = 0.0
 
-    frame["news_7d_article_count"] = frame["news_article_count"].rolling(7).sum().fillna(0)
-    frame["news_7d_sentiment_mean"] = frame["news_sentiment_mean"].rolling(7).mean().fillna(0.5)
-    frame["news_7d_sentiment_trend"] = frame["news_7d_sentiment_mean"].diff().fillna(0.0)
+    if fill_optional:
+        if "jpm_dividend_ttm" in working.columns:
+            working["jpm_dividend_ttm"] = working["jpm_dividend_ttm"].ffill()
+        if "jpm_dividend_growth_yoy" in working.columns:
+            working["jpm_dividend_growth_yoy"] = working["jpm_dividend_growth_yoy"].ffill()
 
-    frame = frame.dropna(subset=["Adj Close", "Close", "Open", "High", "Low"])
-    frame = frame.reset_index().rename(columns={"index": "date"})
+        if "news_article_count" in working.columns:
+            working["news_article_count"] = working["news_article_count"].fillna(0)
+        if "news_sentiment_mean" in working.columns:
+            working["news_sentiment_mean"] = working["news_sentiment_mean"].fillna(0.5)
+        if "news_sentiment_std" in working.columns:
+            working["news_sentiment_std"] = working["news_sentiment_std"].fillna(0.0)
 
-    return frame
+        working["news_7d_article_count"] = working["news_article_count"].rolling(7).sum().fillna(0)
+        working["news_7d_sentiment_mean"] = working["news_sentiment_mean"].rolling(7).mean().fillna(0.5)
+        working["news_7d_sentiment_trend"] = working["news_7d_sentiment_mean"].diff().fillna(0.0)
+    else:
+        working["news_7d_article_count"] = working["news_article_count"].rolling(7).sum()
+        working["news_7d_sentiment_mean"] = working["news_sentiment_mean"].rolling(7).mean()
+        working["news_7d_sentiment_trend"] = working["news_7d_sentiment_mean"].diff()
+
+    if "jpm_dividend_ttm" in working.columns and "Adj Close" in working.columns:
+        working["jpm_dividend_yield_ttm"] = working["jpm_dividend_ttm"] / working["Adj Close"].replace(0, pd.NA)
+
+    return working
 
 
-def main() -> None:
-    # Run the full Week 2 preprocessing pipeline and save the structured dataset.
-    features = build_features()
-    output_path = save_csv(features, "week2_feature_dataset_2018_2024.csv")
-    ok_columns = [
-        "date",
-        "Adj Close",
-        "jpm_return_1d",
-        "jpm_return_5d",
-        "jpm_vol_20d",
-        "jpm_dividend_growth_yoy",
-        "dgs10_change_1d",
-        "dgs10_momentum_5d",
-        "vix_change_1d",
-        "vix_jpm_corr_20d",
-        "news_7d_article_count",
-        "news_7d_sentiment_mean",
-        "news_7d_sentiment_trend",
+def add_future_return_targets(frame: pd.DataFrame) -> pd.DataFrame:
+    working = frame.copy()
+    working["future_jpm_return_5d"] = working["Adj Close"].shift(-5) / working["Adj Close"] - 1.0
+    working["future_jpm_return_21d"] = working["Adj Close"].shift(-21) / working["Adj Close"] - 1.0
+    return working
+
+
+def candidate_feature_columns(frame: pd.DataFrame) -> list[str]:
+    excluded = {"date", "future_jpm_return_5d", "future_jpm_return_21d"}
+    return [
+        column
+        for column in numeric_feature_columns(frame)
+        if column not in excluded and frame[column].nunique(dropna=True) > 1
     ]
 
+
+def correlation_matrix_for_features(frame: pd.DataFrame, features: list[str]) -> pd.DataFrame:
+    if not features:
+        return pd.DataFrame()
+    variable_features = [column for column in features if frame[column].nunique(dropna=True) > 1]
+    if not variable_features:
+        return pd.DataFrame()
+    return frame[variable_features].corr(method="pearson")
+
+
+def prune_correlated_features(frame: pd.DataFrame, features: list[str], threshold: float = CORR_THRESHOLD) -> tuple[list[str], list[str], pd.DataFrame]:
+    if not features:
+        return [], [], pd.DataFrame()
+
+    corr_matrix = correlation_matrix_for_features(frame, features)
+    abs_corr = corr_matrix.abs()
+    mean_abs_corr = abs_corr.apply(lambda series: series.drop(labels=[series.name]).mean(), axis=0).fillna(1.0)
+    ordered_features = sorted(features, key=lambda feature: (mean_abs_corr[feature], feature))
+
+    kept_features: list[str] = []
+    dropped_features: list[str] = []
+
+    for feature in ordered_features:
+        if any(pd.notna(abs_corr.loc[feature, kept_feature]) and abs_corr.loc[feature, kept_feature] > threshold for kept_feature in kept_features):
+            dropped_features.append(feature)
+            continue
+        kept_features.append(feature)
+
+    return kept_features, dropped_features, corr_matrix
+
+
+def compute_ic_report(frame: pd.DataFrame, features: list[str]) -> pd.DataFrame:
+    rows: list[dict[str, object]] = []
+    target_1w = frame["future_jpm_return_5d"]
+    target_1m = frame["future_jpm_return_21d"]
+
+    for feature in features:
+        series = pd.to_numeric(frame[feature], errors="coerce")
+        ic_1w = series.corr(target_1w)
+        ic_1m = series.corr(target_1m)
+        abs_values = [abs(value) for value in [ic_1w, ic_1m] if pd.notna(value)]
+        max_abs_ic = max(abs_values) if abs_values else float("nan")
+        rows.append(
+            {
+                "feature": feature,
+                "ic_1w": ic_1w,
+                "ic_1m": ic_1m,
+                "max_abs_ic": max_abs_ic,
+                "selected_by_ic": bool((pd.notna(ic_1w) and abs(ic_1w) > IC_THRESHOLD) or (pd.notna(ic_1m) and abs(ic_1m) > IC_THRESHOLD)),
+            }
+        )
+
+    return pd.DataFrame(rows)
+
+
+def select_features(frame: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, list[str]]:
+    candidate_features = candidate_feature_columns(frame)
+    kept_by_corr, dropped_by_corr, corr_matrix = prune_correlated_features(frame, candidate_features)
+    ic_report = compute_ic_report(frame, candidate_features)
+    ic_lookup = ic_report.set_index("feature")
+    mean_abs_corr = corr_matrix.abs().apply(lambda series: series.drop(labels=[series.name]).mean(), axis=0).fillna(1.0)
+
+    selected_features: list[str] = []
+    for feature in kept_by_corr:
+        if feature in ic_lookup.index and bool(ic_lookup.loc[feature, "selected_by_ic"]):
+            selected_features.append(feature)
+
+    optimization_rows: list[dict[str, object]] = []
+    for feature in candidate_features:
+        row = ic_lookup.loc[feature]
+        optimization_rows.append(
+            {
+                "feature": feature,
+                "mean_abs_corr": float(mean_abs_corr.get(feature, 1.0)),
+                "corr_pruned": feature in dropped_by_corr,
+                "corr_kept": feature in kept_by_corr,
+                "ic_1w": row["ic_1w"],
+                "ic_1m": row["ic_1m"],
+                "max_abs_ic": row["max_abs_ic"],
+                "selected": feature in selected_features,
+                "drop_reason": (
+                    f"correlation>={CORR_THRESHOLD}" if feature in dropped_by_corr else ("IC threshold" if feature not in selected_features else "kept")
+                ),
+            }
+        )
+
+    optimization_report = pd.DataFrame(optimization_rows)
+    optimization_report = optimization_report[["feature", "mean_abs_corr", "corr_pruned", "corr_kept", "ic_1w", "ic_1m", "max_abs_ic", "selected", "drop_reason"]]
+
+    return optimization_report, ic_report, corr_matrix, selected_features
+
+
+def build_features() -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame, list[str]]:
+    # Build the daily modeling table used in Week 2.
+    base_market = load_market_data(apply_fill=False)
+
+    if "Adj Close" not in base_market.columns:
+        raise ValueError("JPM raw data is missing an Adj Close column")
+    if "Close" not in base_market.columns:
+        raise ValueError("JPM raw data is missing a Close column")
+    if "Open" not in base_market.columns:
+        raise ValueError("JPM raw data is missing an Open column")
+    if "High" not in base_market.columns:
+        raise ValueError("JPM raw data is missing a High column")
+    if "Low" not in base_market.columns:
+        raise ValueError("JPM raw data is missing a Low column")
+    if "Volume" not in base_market.columns:
+        base_market["Volume"] = 0.0
+
+    quality_source = attach_optional_features(add_market_features(base_market.copy()), fill_optional=False)
+    quality_report = summarize_data_quality(quality_source)
+    range_validation_report = validate_feature_ranges(quality_source)
+    if not range_validation_report.empty:
+        quality_report = quality_report.merge(range_validation_report, on="feature", how="left")
+        for _, row in range_validation_report.iterrows():
+            if row["range_violation_count"]:
+                logger.warning(
+                    "Range validation warning for %s: %s violations (%s)",
+                    row["feature"],
+                    int(row["range_violation_count"]),
+                    row["range_rule"],
+                )
+
+    cleaned_base = replace_boxplot_outliers(base_market)
+    cleaned_base = apply_missing_value_strategies(cleaned_base)
+
+    feature_frame = attach_optional_features(add_market_features(cleaned_base), fill_optional=True)
+    feature_frame = add_future_return_targets(feature_frame)
+
+    optimization_report, ic_report, corr_matrix, selected_features = select_features(feature_frame)
+
+    optimized_frame = feature_frame[selected_features].copy().dropna().reset_index()
+
+    return optimized_frame, quality_source, quality_report, optimization_report, ic_report, corr_matrix, selected_features
+
+
+def build_quality_report_markdown(before_frame: pd.DataFrame, cleaned_frame: pd.DataFrame, stats_frame: pd.DataFrame) -> str:
+    missing_columns = int((stats_frame["missing_rate"] > 0).sum())
+    total_features = len(stats_frame)
+    has_range_checks = "range_violation_count" in stats_frame.columns
+    range_violations = int(stats_frame["range_violation_count"].fillna(0).sum()) if has_range_checks else 0
+    lines = [
+        "# Week 2 Data Quality Report",
+        "",
+        f"- Observations analyzed before cleaning: {len(before_frame)}",
+        f"- Observations after cleaning: {len(cleaned_frame)}",
+        f"- Numeric features checked: {total_features}",
+        f"- Features with missing values before cleaning: {missing_columns}",
+        "",
+        "## Missing-Value Strategy",
+        "- Price fields (`Open`, `High`, `Low`, `Close`, `Adj Close`, `Volume`) use interpolation across the daily calendar because the raw files contain short calendar gaps and market non-trading days.",
+        "- Macro series (`dgs10`, `vix`) use forward fill so the most recent observed level is carried forward without using future information.",
+        "- Dividend features are forward-filled after quarterly aggregation because dividend values remain valid until the next announcement.",
+        "- News counts and sentiment scores use neutral defaults when a day has no news, because zero activity and neutral sentiment are the least misleading assumptions.",
+        "- Any rows that still contain missing values after the documented fills are dropped before export, which removes rolling-window warm-up rows and incomplete observations.",
+        "",
+        "## Outlier Strategy",
+        "- Outliers are identified with the boxplot rule, using the 1.5 IQR fence.",
+        "- Flagged values are replaced with the column median computed from inlier observations.",
+        "- This is preferred over a strict 3σ rule because the finance features are not guaranteed to be normally distributed, and the boxplot fence is more robust to skew and heavy tails.",
+        "",
+        "## Range Validation",
+        "- VIX is expected to stay above 0.",
+        "- JPM return features are checked against a -10% to 10% sanity band.",
+        f"- Total range violations found: {range_violations}",
+        "",
+        "## Detailed Statistics",
+        f"- See `{versioned_filename(QUALITY_REPORT_CSV, 'csv')}` for the per-feature table of missing rate, min, max, mean, standard deviation, boxplot bounds, outlier counts, and fill strategy.",
+        f"- See `{versioned_filename(QUALITY_REPORT_PDF, 'pdf')}` for a combined report and chart in one file.",
+    ]
+    return "\n".join(lines)
+
+
+def build_feature_optimization_markdown(optimization_report: pd.DataFrame, corr_matrix: pd.DataFrame, selected_features: list[str]) -> str:
+    selected_report = optimization_report[optimization_report["selected"]].copy()
+    selected_count = len(selected_features)
+    candidate_count = len(optimization_report)
+    corr_pruned_count = int(optimization_report["corr_pruned"].sum())
+
+    lines = [
+        "# Week 2 Feature Engineering Optimization Report",
+        "",
+        f"- Candidate features evaluated: {candidate_count}",
+        f"- Features removed by correlation pruning: {corr_pruned_count}",
+        f"- Features kept after IC screening: {selected_count}",
+        f"- Correlation threshold: {CORR_THRESHOLD}",
+        f"- IC threshold: {IC_THRESHOLD}",
+        "- IC horizons: future 1 week = 5 trading days, future 1 month = 21 trading days",
+        "",
+        "## What Changed",
+        "- Trailing dividend features were converted to trailing dividend yield using current price, which is the standard BSM-style input.",
+        "- Historical volatility now includes 5-day, 20-day, and 60-day windows.",
+        "- Volatility change features were added using both the one-day difference and one-day percentage change of 20-day volatility.",
+        "- Redundant features with absolute Pearson correlation above 0.8 were removed before IC screening.",
+        "- Only features with absolute IC above 0.03 for at least one forecast horizon were retained.",
+        "",
+        "## Selected Features",
+    ]
+    lines.extend(f"- {feature}" for feature in selected_features)
+    lines.extend([
+        "",
+        "## Correlation Matrix",
+        "```text",
+        corr_matrix.round(3).to_string(),
+        "```",
+        "",
+        "## Feature Score Table",
+        "```text",
+        optimization_report.sort_values("max_abs_ic", ascending=False)[
+            ["feature", "mean_abs_corr", "ic_1w", "ic_1m", "max_abs_ic", "corr_pruned", "selected", "drop_reason"]
+        ].head(30).to_string(index=False),
+        "```",
+    ])
+    if not selected_report.empty:
+        lines.extend([
+            "",
+            "## IC-Passed Features",
+            "```text",
+            selected_report.sort_values("max_abs_ic", ascending=False)[["feature", "ic_1w", "ic_1m", "max_abs_ic"]].to_string(index=False),
+            "```",
+        ])
+
+    return "\n".join(lines)
+
+
+def main() -> dict[str, Path]:
+    configure_logging()
+    cleanup_generated_outputs()
+
+    dataset_csv_name = versioned_filename(FEATURE_SELECTED_DATASET, DATASET_OUTPUT_EXTENSION)
+    dataset_parquet_name = Path(dataset_csv_name).with_suffix(".parquet").name
+    quality_report_csv_name = versioned_filename(QUALITY_REPORT_CSV, "csv")
+    quality_report_pdf_name = versioned_filename(QUALITY_REPORT_PDF, "pdf")
+    optimization_report_csv_name = versioned_filename(FEATURE_OPTIMIZATION_CSV, "csv")
+    optimization_report_pdf_name = versioned_filename(FEATURE_OPTIMIZATION_PDF, "pdf")
+    ic_report_name = versioned_filename(FEATURE_IC_REPORT, "csv")
+    correlation_matrix_name = versioned_filename(FEATURE_CORRELATION_CSV, "csv")
+
+    with log_step("Build optimized features"):
+        features, quality_source, quality_report, optimization_report, ic_report, corr_matrix, selected_features = build_features()
+
+    with log_step("Save processed outputs"):
+        output_path = save_csv(features, dataset_csv_name)
+        quality_report_path = save_csv(quality_report.round(6), quality_report_csv_name)
+        optimization_report_path = save_csv(optimization_report.round(6), optimization_report_csv_name)
+        ic_report_path = save_csv(ic_report.round(6), ic_report_name)
+        corr_matrix_path = save_csv(corr_matrix.round(6), correlation_matrix_name)
+        pdf_path = save_pdf_report(build_quality_report_markdown(quality_source, features, quality_report), quality_source, quality_report_pdf_name)
+        optimization_markdown = build_feature_optimization_markdown(optimization_report, corr_matrix, selected_features)
+        optimization_pdf_path = save_text_pdf_report(optimization_markdown, optimization_report_pdf_name)
+
+    logger.info("Selected feature count: %s", len(selected_features))
+    logger.info("Selected features: %s", ", ".join(selected_features))
+    logger.info("Versioned dataset parquet name: %s", dataset_parquet_name)
+
     print(f"[OK] Week 2 feature dataset saved to {output_path.name}")
-    print(f"[OK] Columns included: {', '.join(ok_columns)}")
+    print(f"[OK] Data quality report saved to {quality_report_path.name}")
+    print(f"[OK] Feature optimization report saved to {optimization_report_path.name}")
+    print(f"[OK] Feature IC report saved to {ic_report_path.name}")
+    print(f"[OK] Feature correlation matrix saved to {corr_matrix_path.name}")
+    print(f"[OK] Combined PDF report saved to {pdf_path.name}")
+    print(f"[OK] Feature optimization PDF saved to {optimization_pdf_path.name}")
+    print(f"[OK] Selected feature count: {len(selected_features)}")
+    print(f"[OK] Selected features: {', '.join(selected_features)}")
+
+    return {
+        "dataset_csv": output_path,
+        "quality_report_csv": quality_report_path,
+        "optimization_report_csv": optimization_report_path,
+        "ic_report_csv": ic_report_path,
+        "correlation_matrix_csv": corr_matrix_path,
+        "quality_report_pdf": pdf_path,
+        "optimization_report_pdf": optimization_pdf_path,
+    }
 
 
 if __name__ == "__main__":
