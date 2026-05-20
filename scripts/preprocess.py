@@ -28,6 +28,7 @@ FEATURE_IC_REPORT = "week2_feature_ic_report"
 DATASET_OUTPUT_EXTENSION = "csv"
 IC_THRESHOLD = 0.03
 CORR_THRESHOLD = 0.8
+BOXPLOT_EXCLUDED_PREFIXES = ("news_",)
 
 
 logger = logging.getLogger("week2_pipeline")
@@ -87,7 +88,11 @@ def save_csv(frame: pd.DataFrame, filename: str) -> Path:
 
 
 def build_boxplot_figure(frame: pd.DataFrame) -> plt.Figure:
-    numeric_columns = numeric_feature_columns(frame)
+    numeric_columns = [
+        column
+        for column in numeric_feature_columns(frame)
+        if not column.startswith(BOXPLOT_EXCLUDED_PREFIXES)
+    ]
     if not numeric_columns:
         raise ValueError("No numeric columns available for boxplot generation")
 
@@ -111,29 +116,7 @@ def save_pdf_report(report_text: str, boxplot_frame: pd.DataFrame, filename: str
     output_path = PROCESSED_DIR / filename
 
     with PdfPages(output_path) as pdf:
-        report_fig = plt.figure(figsize=(8.5, 11))
-        report_ax = report_fig.add_axes([0, 0, 1, 1])
-        report_ax.axis("off")
-
-        y = 0.97
-        for line in report_text.splitlines():
-            if not line.strip():
-                y -= 0.02
-                continue
-            wrapped_lines = textwrap.wrap(line, width=92) or [""]
-            for wrapped_line in wrapped_lines:
-                report_fig.text(0.05, y, wrapped_line, ha="left", va="top", fontsize=9)
-                y -= 0.018
-                if y < 0.05:
-                    pdf.savefig(report_fig, bbox_inches="tight")
-                    plt.close(report_fig)
-                    report_fig = plt.figure(figsize=(8.5, 11))
-                    report_ax = report_fig.add_axes([0, 0, 1, 1])
-                    report_ax.axis("off")
-                    y = 0.97
-
-        pdf.savefig(report_fig, bbox_inches="tight")
-        plt.close(report_fig)
+        render_text_report(pdf, report_text, title="Week 2 Data Quality Report")
 
         pdf.savefig(build_boxplot_figure(boxplot_frame), bbox_inches="tight")
 
@@ -145,31 +128,73 @@ def save_text_pdf_report(report_text: str, filename: str) -> Path:
     output_path = PROCESSED_DIR / filename
 
     with PdfPages(output_path) as pdf:
+        render_text_report(pdf, report_text, title="Week 2 Feature Engineering Optimization Report")
+
+    return output_path
+
+
+def render_text_report(pdf: PdfPages, report_text: str, title: str) -> None:
+    report_fig = plt.figure(figsize=(8.5, 11))
+    report_ax = report_fig.add_axes([0, 0, 1, 1])
+    report_ax.axis("off")
+
+    y = 0.95
+    report_fig.text(0.05, 0.975, title, ha="left", va="top", fontsize=18, fontweight="bold")
+    skipped_title_line = False
+
+    def flush_page() -> None:
+        nonlocal report_fig, report_ax, y
+        pdf.savefig(report_fig, bbox_inches="tight")
+        plt.close(report_fig)
         report_fig = plt.figure(figsize=(8.5, 11))
         report_ax = report_fig.add_axes([0, 0, 1, 1])
         report_ax.axis("off")
+        report_fig.text(0.05, 0.975, title, ha="left", va="top", fontsize=18, fontweight="bold")
+        y = 0.95
 
-        y = 0.97
-        for line in report_text.splitlines():
-            if not line.strip():
-                y -= 0.02
-                continue
-            wrapped_lines = textwrap.wrap(line, width=92) or [""]
-            for wrapped_line in wrapped_lines:
-                report_fig.text(0.05, y, wrapped_line, ha="left", va="top", fontsize=9)
-                y -= 0.018
-                if y < 0.05:
-                    pdf.savefig(report_fig, bbox_inches="tight")
-                    plt.close(report_fig)
-                    report_fig = plt.figure(figsize=(8.5, 11))
-                    report_ax = report_fig.add_axes([0, 0, 1, 1])
-                    report_ax.axis("off")
-                    y = 0.97
+    for line in report_text.splitlines():
+        stripped = line.strip()
+        if not stripped:
+            y -= 0.012
+            continue
 
-        pdf.savefig(report_fig, bbox_inches="tight")
-        plt.close(report_fig)
+        if not skipped_title_line and stripped.startswith("# ") and stripped[2:].strip() == title:
+            skipped_title_line = True
+            continue
 
-    return output_path
+        if stripped.startswith("```"):
+            continue
+
+        if stripped.startswith("# "):
+            display = stripped[2:].strip()
+            font_size = 15
+            font_weight = "bold"
+            y -= 0.01
+        elif stripped.startswith("## "):
+            display = stripped[3:].strip()
+            font_size = 12
+            font_weight = "bold"
+            y -= 0.004
+        elif stripped.startswith("- "):
+            display = f"• {stripped[2:].strip()}"
+            font_size = 9.5
+            font_weight = "normal"
+        else:
+            display = stripped
+            font_size = 9.5
+            font_weight = "normal"
+
+        wrapped_lines = textwrap.wrap(display, width=94) or [""]
+        for index, wrapped_line in enumerate(wrapped_lines):
+            if y < 0.06:
+                flush_page()
+            report_fig.text(0.05, y, wrapped_line, ha="left", va="top", fontsize=font_size, fontweight=font_weight)
+            y -= 0.018 if font_size <= 10 else 0.022
+            if index < len(wrapped_lines) - 1:
+                y -= 0.001
+
+    pdf.savefig(report_fig, bbox_inches="tight")
+    plt.close(report_fig)
 
 
 def cap_iqr(series: pd.Series, factor: float = 1.5) -> pd.Series:
@@ -858,6 +883,7 @@ def build_quality_report_markdown(before_frame: pd.DataFrame, cleaned_frame: pd.
         "- Outliers are identified with the boxplot rule, using the 1.5 IQR fence.",
         "- Flagged values are replaced with the column median computed from inlier observations.",
         "- This is preferred over a strict 3σ rule because the finance features are not guaranteed to be normally distributed, and the boxplot fence is more robust to skew and heavy tails.",
+        "- The boxplot figure excludes news-derived features so the plot focuses on financial series with comparable numeric scales.",
         "",
         "## Range Validation",
         "- VIX is expected to stay above 0.",
