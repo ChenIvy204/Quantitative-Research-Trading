@@ -163,6 +163,11 @@ def normalize_news_results(
 
 
 def fetch_alpha_vantage_news(api_key: str) -> bool:
+    existing_path = DATA_DIR / "alphavantage_news_jpm_2018_2024.csv"
+    if existing_path.exists():
+        ok(f"Alpha Vantage 2018-2024 news file already exists and will be reused: {existing_path.name}")
+        return True
+
     url = "https://www.alphavantage.co/query"
     ticker = "JPM"
     all_articles: list[dict[str, object]] = []
@@ -205,7 +210,7 @@ def fetch_alpha_vantage_news(api_key: str) -> bool:
 
     frame = pd.DataFrame(all_articles)
     frame = frame.sort_values("publishedAt")
-    filename = "alphavantage_news_jpm_recent.csv"
+    filename = "alphavantage_news_jpm_2018_2024.csv"
     path = save_csv(frame, filename)
     ok(f"Alpha Vantage NEWS_SENTIMENT returned {len(frame)} articles for JPM and saved {path.name}")
     return True
@@ -289,16 +294,16 @@ def test_yahoo_finance() -> bool:
     ok(f"Yahoo Finance returned {len(history)} rows for JPM and saved {path.name}")
 
     try:
-        dividends = yf.Ticker("JPM").dividends
+        history_with_actions = yf.Ticker("JPM").history(period="max", auto_adjust=False, actions=True)
     except Exception as error:  # noqa: BLE001 - network failures are expected here
         print(f"[WARN] Yahoo Finance dividend history unavailable for JPM: {error}")
         return True
 
-    if dividends is None or dividends.empty:
+    if history_with_actions is None or history_with_actions.empty or "Dividends" not in history_with_actions.columns:
         print("[WARN] Yahoo Finance returned no dividend history for JPM")
         return True
 
-    dividend_frame = dividends.to_frame(name="dividend")
+    dividend_frame = history_with_actions[["Dividends"]].rename(columns={"Dividends": "dividend"})
     dividend_frame.index.name = "date"
     dividend_frame = dividend_frame.loc[START_DATE:END_DATE_EXCLUSIVE]
 

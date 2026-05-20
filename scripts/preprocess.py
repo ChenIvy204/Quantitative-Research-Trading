@@ -594,10 +594,17 @@ def normalize_sentiment_to_unit_interval(series: pd.Series) -> pd.Series:
 def load_news_data() -> pd.DataFrame | None:
     # Load the available news source and convert article text into a simple sentiment proxy.
     candidate_groups = [
+        [RAW_DIR / "alphavantage_news_jpm_2018_2024.csv"],
         list(RAW_DIR.glob("alphavantage_*.csv")),
         list(RAW_DIR.glob("news_*.csv")),
     ]
-    news_frame_path = next((max(files, key=lambda path: path.stat().st_mtime) for files in candidate_groups if files), None)
+    news_frame_path = next((path for files in candidate_groups for path in files if path.exists()), None)
+    if news_frame_path is None:
+        candidate_groups = [
+            list(RAW_DIR.glob("alphavantage_*.csv")),
+            list(RAW_DIR.glob("news_*.csv")),
+        ]
+        news_frame_path = next((max(files, key=lambda path: path.stat().st_mtime) for files in candidate_groups if files), None)
     if news_frame_path is None:
         return None
 
@@ -645,13 +652,13 @@ def load_news_data() -> pd.DataFrame | None:
 
 def add_market_features(frame: pd.DataFrame) -> pd.DataFrame:
     working = frame.copy()
-    working["jpm_return_1d"] = working["Adj Close"].pct_change()
-    working["jpm_return_5d"] = working["Adj Close"].pct_change(5)
+    working["jpm_return_1d"] = working["Adj Close"].pct_change(fill_method=None)
+    working["jpm_return_5d"] = working["Adj Close"].pct_change(5, fill_method=None)
     working["jpm_vol_20d"] = working["jpm_return_1d"].rolling(20).std() * (252 ** 0.5)
     working["jpm_vol_5d"] = working["jpm_return_1d"].rolling(5).std() * (252 ** 0.5)
     working["jpm_vol_60d"] = working["jpm_return_1d"].rolling(60).std() * (252 ** 0.5)
     working["jpm_vol_20d_change_1d"] = working["jpm_vol_20d"].diff()
-    working["jpm_vol_20d_change_rate_1d"] = working["jpm_vol_20d"].pct_change()
+    working["jpm_vol_20d_change_rate_1d"] = working["jpm_vol_20d"].pct_change(fill_method=None)
     working["jpm_ma_20d"] = working["Adj Close"].rolling(20).mean()
     working["jpm_price_to_ma_20d"] = working["Adj Close"] / working["jpm_ma_20d"]
     working["dgs10_change_1d"] = working["dgs10"].diff()
