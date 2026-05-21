@@ -25,6 +25,9 @@ QUALITY_REPORT_MD = "week2_data_quality_report"
 QUALITY_REPORT_PDF = "week2_data_quality_report"
 QUALITY_REPORT_BOXPLOT = "week2_data_quality_report_boxplot"
 FEATURE_OPTIMIZATION_CSV = "week2_feature_optimization_report"
+FEATURE_OPTIMIZATION_SUMMARY = "week2_feature_optimization_summary"
+FEATURE_OPTIMIZATION_CORR_HEATMAP = "week2_feature_optimization_corr_heatmap"
+FEATURE_OPTIMIZATION_IC_BARS = "week2_feature_optimization_ic_bars"
 FEATURE_OPTIMIZATION_PDF = "week2_feature_optimization_report"
 FEATURE_CORRELATION_CSV = "week2_feature_correlation_matrix"
 FEATURE_SELECTED_DATASET = "week2_feature_dataset"
@@ -124,6 +127,226 @@ def save_figure(figure: plt.Figure, filename: str) -> Path:
     figure.savefig(path, bbox_inches="tight", dpi=160)
     plt.close(figure)
     return path
+
+
+def build_feature_optimization_figure(optimization_report: pd.DataFrame, selected_features: list[str]) -> plt.Figure:
+    selected_report = optimization_report[optimization_report["selected"]].copy()
+    candidate_count = len(optimization_report)
+    corr_pruned_count = int(optimization_report["corr_pruned"].sum())
+    selected_count = len(selected_features)
+    ic_pass_count = int(optimization_report["selected"].sum())
+
+    fig = plt.figure(figsize=(12, 8.5), constrained_layout=True)
+    grid = fig.add_gridspec(2, 2, height_ratios=[1, 1.15])
+
+    counts_ax = fig.add_subplot(grid[0, 0])
+    stages = ["Candidates", "After corr pruning", "IC-passed", "Final selected"]
+    stage_values = [candidate_count, candidate_count - corr_pruned_count, ic_pass_count, selected_count]
+    stage_colors = ["#2b6cb0", "#4299e1", "#38a169", "#d69e2e"]
+    counts_ax.bar(stages, stage_values, color=stage_colors)
+    counts_ax.set_title("Feature Selection Funnel", loc="left", fontsize=12, fontweight="bold")
+    counts_ax.set_ylabel("Feature count")
+    counts_ax.set_ylim(0, max(stage_values + [1]) * 1.2)
+    counts_ax.tick_params(axis="x", labelrotation=20)
+    for index, value in enumerate(stage_values):
+        counts_ax.text(index, value + max(stage_values) * 0.03 if max(stage_values) else 0.05, str(value), ha="center", va="bottom", fontsize=9)
+
+    threshold_ax = fig.add_subplot(grid[0, 1])
+    threshold_ax.axis("off")
+    threshold_text = (
+        f"Correlation threshold: {CORR_THRESHOLD}\n"
+        f"IC threshold: {IC_THRESHOLD}\n"
+        f"Candidate features evaluated: {candidate_count}\n"
+        f"Features removed by correlation pruning: {corr_pruned_count}\n"
+        f"Final selected features: {selected_count}"
+    )
+    threshold_ax.text(0.02, 0.98, threshold_text, va="top", ha="left", fontsize=12, linespacing=1.7)
+    threshold_ax.set_title("Screening Summary", loc="left", fontsize=12, fontweight="bold")
+
+    feature_ax = fig.add_subplot(grid[1, :])
+    if selected_report.empty:
+        feature_ax.text(0.5, 0.5, "No features passed both filters", ha="center", va="center", fontsize=12)
+        feature_ax.set_axis_off()
+    else:
+        top_features = selected_report.sort_values("max_abs_ic", ascending=True)
+        y_positions = list(range(len(top_features)))
+        feature_ax.barh(y_positions, top_features["max_abs_ic"], color="#4a5568")
+        feature_ax.set_yticks(y_positions)
+        feature_ax.set_yticklabels(top_features["feature"])
+        feature_ax.set_xlabel("Max absolute IC")
+        feature_ax.set_title("Retained Features Ranked by Predictive Strength", loc="left", fontsize=12, fontweight="bold")
+        feature_ax.axvline(IC_THRESHOLD, color="#c53030", linestyle="--", linewidth=1.2, label="IC threshold")
+        feature_ax.legend(loc="lower right", frameon=False)
+        feature_ax.grid(axis="x", linestyle=":", alpha=0.35)
+
+    fig.suptitle("Week 2 Feature Engineering Optimization Summary", fontsize=15, fontweight="bold")
+    return fig
+
+
+def build_feature_optimization_corr_heatmap(
+    optimization_report: pd.DataFrame,
+    corr_matrix: pd.DataFrame,
+    selected_features: list[str],
+    top_n: int = 8,
+) -> plt.Figure:
+    if corr_matrix.empty:
+        fig, ax = plt.subplots(figsize=(8, 4))
+        ax.axis("off")
+        ax.text(0.5, 0.5, "Correlation matrix is empty", ha="center", va="center", fontsize=12)
+        fig.suptitle("Pearson Correlation Heatmap", fontsize=15, fontweight="bold")
+        return fig
+
+    pruned_features = optimization_report.loc[optimization_report["corr_pruned"], "feature"].tolist()
+    if not pruned_features:
+        pruned_features = selected_features[:top_n]
+
+    partner_features: list[str] = []
+    for feature in pruned_features:
+        if feature not in corr_matrix.index:
+            continue
+        candidate_correlations = corr_matrix.loc[feature].drop(labels=[feature], errors="ignore").abs().sort_values(ascending=False)
+        if candidate_correlations.empty:
+            continue
+        partner_features.append(candidate_correlations.index[0])
+
+    heatmap_features = list(dict.fromkeys(pruned_features + partner_features))
+    heatmap_features = [feature for feature in heatmap_features if feature in corr_matrix.columns]
+    if not heatmap_features:
+        heatmap_features = list(corr_matrix.columns[: min(len(corr_matrix.columns), top_n)])
+
+    matrix = corr_matrix.loc[heatmap_features, heatmap_features]
+    feature_count = len(matrix.columns)
+    size = max(10.5, min(18.0, 0.52 * feature_count + 5.0))
+
+    fig, ax = plt.subplots(figsize=(size, size))
+    fig.patch.set_facecolor("white")
+    ax.set_facecolor("#f8fafc")
+
+    import numpy as np
+
+    mask = np.tril(np.ones_like(matrix.values, dtype=bool), k=-1)
+    display_matrix = np.ma.array(matrix.values, mask=mask)
+
+    image = ax.imshow(display_matrix, cmap="RdBu_r", vmin=-1, vmax=1, aspect="equal", interpolation="nearest")
+    ax.set_xticks(range(len(matrix.columns)))
+    ax.set_xticklabels(matrix.columns, rotation=90, ha="center", fontsize=max(6.5, min(9.0, 150.0 / max(feature_count, 1))))
+    ax.set_yticks(range(len(matrix.index)))
+    ax.set_yticklabels(matrix.index, fontsize=max(6.5, min(9.0, 150.0 / max(feature_count, 1))))
+
+    ax.set_xticks([x - 0.5 for x in range(len(matrix.columns) + 1)], minor=True)
+    ax.set_yticks([y - 0.5 for y in range(len(matrix.index) + 1)], minor=True)
+    ax.grid(which="minor", color="white", linestyle="-", linewidth=0.9)
+    ax.tick_params(which="minor", bottom=False, left=False)
+    ax.tick_params(axis="both", length=0)
+
+    for row_index, row_name in enumerate(matrix.index):
+        for col_index, col_name in enumerate(matrix.columns):
+            if row_index > col_index:
+                continue
+            value = matrix.loc[row_name, col_name]
+            text_color = "white" if abs(value) >= 0.58 else "#1f2937"
+            ax.text(col_index, row_index, f"{value:.2f}", ha="center", va="center", fontsize=max(6.0, min(8.0, 115.0 / max(feature_count, 1))), color=text_color, fontweight="bold")
+
+    for index, feature in enumerate(matrix.columns):
+        if feature in pruned_features:
+            ax.get_xticklabels()[index].set_color("#c53030")
+            ax.get_yticklabels()[index].set_color("#c53030")
+            ax.get_xticklabels()[index].set_fontweight("bold")
+            ax.get_yticklabels()[index].set_fontweight("bold")
+
+    if pruned_features:
+        boundary = len(pruned_features) - 0.5
+        ax.axvline(boundary, color="#718096", linewidth=1.2, linestyle="--")
+        ax.axhline(boundary, color="#718096", linewidth=1.2, linestyle="--")
+        ax.text(
+            min(boundary + 0.2, feature_count - 0.3),
+            -0.95,
+            "kept features",
+            ha="left",
+            va="center",
+            fontsize=8.5,
+            color="#2f855a",
+            fontweight="bold",
+            clip_on=False,
+        )
+        ax.text(
+            0.0,
+            -0.95,
+            "pruned features",
+            ha="left",
+            va="center",
+            fontsize=8.5,
+            color="#c53030",
+            fontweight="bold",
+            clip_on=False,
+        )
+
+    fig.suptitle("Correlation Heatmap", fontsize=13, fontweight="bold", x=0.19, y=0.975, ha="left")
+    fig.text(
+        0.19,
+        0.945,
+        f"Pruned features are grouped first and the lower triangle is hidden to reduce visual noise. Cells with |rho| > {CORR_THRESHOLD} are the pruning targets.",
+        ha="left",
+        va="top",
+        fontsize=9.2,
+        color="#4a5568",
+    )
+    fig.colorbar(image, ax=ax, fraction=0.046, pad=0.04, label="Pearson correlation")
+    fig.subplots_adjust(top=0.86, bottom=0.18, left=0.18, right=0.96)
+    return fig
+
+
+def build_feature_optimization_ic_bars(ic_report: pd.DataFrame, selected_features: list[str]) -> plt.Figure:
+    if ic_report.empty:
+        fig, ax = plt.subplots(figsize=(8, 4))
+        ax.axis("off")
+        ax.text(0.5, 0.5, "IC report is empty", ha="center", va="center", fontsize=12)
+        fig.suptitle("IC Bar Chart", fontsize=15, fontweight="bold")
+        return fig
+
+    plot_frame = ic_report.copy().sort_values("max_abs_ic", ascending=True).reset_index(drop=True)
+    y_positions = list(range(len(plot_frame)))
+    bar_height = 0.36
+    selected_set = set(selected_features)
+
+    fig_height = max(8.5, 0.34 * len(plot_frame) + 3.2)
+    fig, ax = plt.subplots(figsize=(12, fig_height), constrained_layout=True)
+
+    colors_1w = ["#2b6cb0" if feature in selected_set else "#a0aec0" for feature in plot_frame["feature"]]
+    colors_1m = ["#38a169" if feature in selected_set else "#cbd5e0" for feature in plot_frame["feature"]]
+
+    ax.barh([y - bar_height / 2 for y in y_positions], plot_frame["ic_1w"], height=bar_height, color=colors_1w, label="1-week IC (5 trading days)")
+    ax.barh([y + bar_height / 2 for y in y_positions], plot_frame["ic_1m"], height=bar_height, color=colors_1m, label="1-month IC (21 trading days)")
+    ax.axvline(IC_THRESHOLD, color="#c53030", linestyle="--", linewidth=1.2, label="+IC threshold")
+    ax.axvline(-IC_THRESHOLD, color="#c53030", linestyle="--", linewidth=1.2, label="-IC threshold")
+    ax.axvline(0.0, color="#4a5568", linewidth=1.0)
+    ax.set_yticks(y_positions)
+    ax.set_yticklabels(plot_frame["feature"], fontsize=8)
+    ax.set_xlabel("IC value")
+    ax.set_title("IC by Feature and Horizon", loc="left", fontsize=12, fontweight="bold")
+    ax.grid(axis="x", linestyle=":", alpha=0.35)
+    from matplotlib.patches import Patch
+
+    legend_handles = [
+        Patch(facecolor="#2b6cb0", edgecolor="none", label="1-week IC for selected features"),
+        Patch(facecolor="#38a169", edgecolor="none", label="1-month IC for selected features"),
+        Patch(facecolor="#cbd5e0", edgecolor="none", label="1-month IC for unselected features"),
+        Patch(facecolor="#a0aec0", edgecolor="none", label="1-week IC for unselected features"),
+        Patch(facecolor="none", edgecolor="#c53030", linestyle="--", label="|IC| threshold at 0.03"),
+    ]
+    ax.legend(handles=legend_handles, loc="lower right", frameon=False, fontsize=8)
+    ax.set_xlim(min(-0.08, float(plot_frame[["ic_1w", "ic_1m"]].min().min()) - 0.01), max(0.08, float(plot_frame[["ic_1w", "ic_1m"]].max().max()) + 0.01))
+    ax.text(
+        0.01,
+        1.02,
+        "Blue bars show 1-week IC, green bars show 1-month IC, and gray bars mean the feature did not pass the final selection step.",
+        transform=ax.transAxes,
+        ha="left",
+        va="bottom",
+        fontsize=9.2,
+    )
+    fig.suptitle("Week 2 IC Screening Overview", fontsize=15, fontweight="bold")
+    return fig
 
 
 def format_markdown_cell(value: object, precision: int = 4, max_length: int | None = None) -> str:
@@ -1037,48 +1260,52 @@ def build_feature_optimization_markdown(optimization_report: pd.DataFrame, corr_
     selected_count = len(selected_features)
     candidate_count = len(optimization_report)
     corr_pruned_count = int(optimization_report["corr_pruned"].sum())
+    top_selected_features = (
+        selected_report.sort_values("max_abs_ic", ascending=False)["feature"].head(5).tolist()
+        if not selected_report.empty
+        else []
+    )
+    top_selected_text = ", ".join(top_selected_features) if top_selected_features else "no features passed both filters"
+    corr_summary = (
+        "The correlation matrix shows that some candidate features are highly redundant, so correlation pruning runs before IC screening."
+        if not corr_matrix.empty
+        else "The correlation matrix is empty, which means the current candidate set does not contain enough comparable features."
+    )
 
     lines = [
         "# Week 2 Feature Engineering Optimization Report",
         "",
-        f"- Candidate features evaluated: {candidate_count}",
-        f"- Features removed by correlation pruning: {corr_pruned_count}",
-        f"- Features kept after IC screening: {selected_count}",
-        f"- Correlation threshold: {CORR_THRESHOLD}",
-        f"- IC threshold: {IC_THRESHOLD}",
-        "- IC horizons: future 1 week = 5 trading days, future 1 month = 21 trading days",
+        f"This stage evaluated {candidate_count} candidate features and finally kept {selected_count} features for the modeling dataset.",
+        f"Before IC screening, {corr_pruned_count} features were removed because they were too similar to other candidates, using a Pearson correlation threshold of {CORR_THRESHOLD}.",
+        f"The IC filter then kept only features with absolute IC above {IC_THRESHOLD} on at least one horizon, where the horizons are 5 trading days for the 1-week target and 21 trading days for the 1-month target.",
+        "",
+        f"![Optimization summary]({versioned_filename(FEATURE_OPTIMIZATION_SUMMARY, 'png')})",
+        "",
+        "## Visualizations",
+        "",
+        "### Correlation Heatmap",
+        "This heatmap groups the features removed by correlation pruning at the front, hides the redundant lower triangle, and keeps the figure focused on the variables excluded for exceeding the 0.8 threshold. Cells with absolute correlation above 0.8 are the main pruning targets.",
+        f"![Correlation heatmap]({versioned_filename(FEATURE_OPTIMIZATION_CORR_HEATMAP, 'png')})",
+        "",
+        "### IC Bar Chart",
+        "This chart compares each feature's IC at the 1-week and 1-month horizons. Blue bars show the 1-week IC, green bars show the 1-month IC, and gray bars indicate features that did not pass the final selection step. The dashed lines mark the +/- 0.03 threshold used for selection.",
+        f"![IC bar chart]({versioned_filename(FEATURE_OPTIMIZATION_IC_BARS, 'png')})",
         "",
         "## What Changed",
-        "- Trailing dividend features were converted to trailing dividend yield using current price, which is the standard BSM-style input.",
-        "- Historical volatility now includes 5-day, 20-day, and 60-day windows.",
-        "- Volatility change features were added using both the one-day difference and one-day percentage change of 20-day volatility.",
-        "- Redundant features with absolute Pearson correlation above 0.8 were removed before IC screening.",
-        "- Only features with absolute IC above 0.03 for at least one forecast horizon were retained.",
+        "The feature set was redesigned to make the inputs more informative and less redundant. Trailing dividend features were transformed into dividend yield so they are comparable across time. Volatility was expanded to 5-day, 20-day, and 60-day windows, and the 20-day volatility series also gained level-change and rate-change signals. These changes make the feature set more expressive without turning it into a long list of nearly duplicated variables.",
         "",
-        "## Selected Features",
+        "The correlation screen removed features that were overlapping too heavily with others, so the remaining set is easier to interpret and less likely to double-count the same information. " + corr_summary,
+        "",
+        f"After the IC check, the surviving features were the ones that showed a meaningful relationship with future returns. The strongest retained names were {top_selected_text}.",
+        "",
+        "## Interpretation",
+        "Overall, this report shows that the pipeline moved from a broad raw candidate pool to a compact set of features centered on price momentum, volatility behavior, rate dynamics, VIX interaction, dividend yield, and news activity. In other words, the final feature set is meant to be explained in sentences rather than read as a spreadsheet dump.",
     ]
-    lines.extend(f"- {feature}" for feature in selected_features)
-    lines.extend([
-        "",
-        "## Correlation Matrix",
-        "```text",
-        corr_matrix.round(3).to_string(),
-        "```",
-        "",
-        "## Feature Score Table",
-        "```text",
-        optimization_report.sort_values("max_abs_ic", ascending=False)[
-            ["feature", "mean_abs_corr", "ic_1w", "ic_1m", "max_abs_ic", "corr_pruned", "selected", "drop_reason"]
-        ].head(30).to_string(index=False),
-        "```",
-    ])
     if not selected_report.empty:
         lines.extend([
             "",
-            "## IC-Passed Features",
-            "```text",
-            selected_report.sort_values("max_abs_ic", ascending=False)[["feature", "ic_1w", "ic_1m", "max_abs_ic"]].to_string(index=False),
-            "```",
+            "## Final Note",
+            "The selected feature set is not exhaustive of every raw input; it is the compact subset that passed both the correlation and IC filters, and it is intended for downstream modeling rather than manual inspection of raw columns.",
         ])
 
     return "\n".join(lines)
@@ -1095,6 +1322,9 @@ def main() -> dict[str, Path]:
     quality_report_pdf_name = versioned_filename(QUALITY_REPORT_PDF, "pdf")
     quality_report_boxplot_name = versioned_filename(QUALITY_REPORT_BOXPLOT, "png")
     optimization_report_csv_name = versioned_filename(FEATURE_OPTIMIZATION_CSV, "csv")
+    optimization_summary_name = versioned_filename(FEATURE_OPTIMIZATION_SUMMARY, "png")
+    optimization_corr_heatmap_name = versioned_filename(FEATURE_OPTIMIZATION_CORR_HEATMAP, "png")
+    optimization_ic_bars_name = versioned_filename(FEATURE_OPTIMIZATION_IC_BARS, "png")
     optimization_report_pdf_name = versioned_filename(FEATURE_OPTIMIZATION_PDF, "pdf")
     ic_report_name = versioned_filename(FEATURE_IC_REPORT, "csv")
     correlation_matrix_name = versioned_filename(FEATURE_CORRELATION_CSV, "csv")
@@ -1112,8 +1342,19 @@ def main() -> dict[str, Path]:
         quality_report_md_path = save_markdown(quality_markdown, quality_report_md_name)
         quality_report_boxplot_path = save_figure(build_boxplot_figure(quality_source), quality_report_boxplot_name)
         pdf_path = save_pdf_report(quality_report_md_path, quality_report_pdf_name, asset_paths={quality_report_boxplot_path.name: quality_report_boxplot_path})
+        optimization_summary_path = save_figure(build_feature_optimization_figure(optimization_report, selected_features), optimization_summary_name)
+        optimization_corr_heatmap_path = save_figure(build_feature_optimization_corr_heatmap(optimization_report, corr_matrix, selected_features), optimization_corr_heatmap_name)
+        optimization_ic_bars_path = save_figure(build_feature_optimization_ic_bars(ic_report, selected_features), optimization_ic_bars_name)
         optimization_markdown = build_feature_optimization_markdown(optimization_report, corr_matrix, selected_features)
-        optimization_pdf_path = save_text_pdf_report(optimization_markdown, optimization_report_pdf_name)
+        optimization_pdf_path = save_pdf_report(
+            save_markdown(optimization_markdown, versioned_filename(FEATURE_OPTIMIZATION_CSV, "md")),
+            optimization_report_pdf_name,
+            asset_paths={
+                optimization_summary_path.name: optimization_summary_path,
+                optimization_corr_heatmap_path.name: optimization_corr_heatmap_path,
+                optimization_ic_bars_path.name: optimization_ic_bars_path,
+            },
+        )
 
     logger.info("Selected feature count: %s", len(selected_features))
     logger.info("Selected features: %s", ", ".join(selected_features))
@@ -1126,6 +1367,9 @@ def main() -> dict[str, Path]:
     print(f"[OK] Feature optimization report saved to {optimization_report_path.name}")
     print(f"[OK] Feature IC report saved to {ic_report_path.name}")
     print(f"[OK] Feature correlation matrix saved to {corr_matrix_path.name}")
+    print(f"[OK] Feature optimization summary saved to {optimization_summary_path.name}")
+    print(f"[OK] Feature optimization correlation heatmap saved to {optimization_corr_heatmap_path.name}")
+    print(f"[OK] Feature optimization IC bars saved to {optimization_ic_bars_path.name}")
     print(f"[OK] Combined PDF report saved to {pdf_path.name}")
     print(f"[OK] Feature optimization PDF saved to {optimization_pdf_path.name}")
     print(f"[OK] Selected feature count: {len(selected_features)}")
@@ -1137,6 +1381,9 @@ def main() -> dict[str, Path]:
         "quality_report_md": quality_report_md_path,
         "quality_report_boxplot": quality_report_boxplot_path,
         "optimization_report_csv": optimization_report_path,
+        "optimization_summary": optimization_summary_path,
+        "optimization_corr_heatmap": optimization_corr_heatmap_path,
+        "optimization_ic_bars": optimization_ic_bars_path,
         "ic_report_csv": ic_report_path,
         "correlation_matrix_csv": corr_matrix_path,
         "quality_report_pdf": pdf_path,
