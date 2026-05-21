@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import re
 from pathlib import Path
 from datetime import datetime
 import textwrap
@@ -13,13 +14,16 @@ import pandas as pd
 ROOT = Path(__file__).resolve().parents[1]
 RAW_DIR = ROOT / "data" / "raw"
 PROCESSED_DIR = ROOT / "data" / "processed"
+REPORTS_DIR = ROOT / "data" / "reports"
 START_DATE = "2018-01-01"
 END_DATE_EXCLUSIVE = "2025-01-01"
 PIPELINE_VERSION = "v1.0"
 RUN_DATE = datetime.now().strftime("%Y%m%d")
 
 QUALITY_REPORT_CSV = "week2_data_quality_report"
+QUALITY_REPORT_MD = "week2_data_quality_report"
 QUALITY_REPORT_PDF = "week2_data_quality_report"
+QUALITY_REPORT_BOXPLOT = "week2_data_quality_report_boxplot"
 FEATURE_OPTIMIZATION_CSV = "week2_feature_optimization_report"
 FEATURE_OPTIMIZATION_PDF = "week2_feature_optimization_report"
 FEATURE_CORRELATION_CSV = "week2_feature_correlation_matrix"
@@ -29,9 +33,24 @@ DATASET_OUTPUT_EXTENSION = "csv"
 IC_THRESHOLD = 0.03
 CORR_THRESHOLD = 0.8
 BOXPLOT_EXCLUDED_PREFIXES = ("news_",)
+BOXPLOT_CORE_FEATURES = (
+    "Open",
+    "High",
+    "Low",
+    "Close",
+    "Adj Close",
+    "Volume",
+    "vix",
+    "jpm_return_1d",
+    "jpm_return_5d",
+    "jpm_vol_5d",
+    "jpm_vol_20d",
+    "jpm_vol_60d",
+)
 
 
 logger = logging.getLogger("week2_pipeline")
+IMAGE_MARKDOWN_PATTERN = re.compile(r"^!\[(?P<alt>.*?)\]\((?P<path>.*?)\)$")
 
 
 def versioned_filename(stem: str, extension: str) -> str:
@@ -41,6 +60,10 @@ def versioned_filename(stem: str, extension: str) -> str:
 def cleanup_generated_outputs() -> None:
     ensure_output_dir()
     for path in PROCESSED_DIR.glob("week2_*"):
+        if path.is_file() or path.is_symlink():
+            path.unlink()
+    REPORTS_DIR.mkdir(parents=True, exist_ok=True)
+    for path in REPORTS_DIR.glob("week2_*"):
         if path.is_file() or path.is_symlink():
             path.unlink()
 
@@ -78,6 +101,7 @@ class log_step:
 
 def ensure_output_dir() -> None:
     PROCESSED_DIR.mkdir(parents=True, exist_ok=True)
+    REPORTS_DIR.mkdir(parents=True, exist_ok=True)
 
 
 def save_csv(frame: pd.DataFrame, filename: str) -> Path:
@@ -87,12 +111,74 @@ def save_csv(frame: pd.DataFrame, filename: str) -> Path:
     return path
 
 
+def save_markdown(markdown_text: str, filename: str) -> Path:
+    ensure_output_dir()
+    path = REPORTS_DIR / filename
+    path.write_text(markdown_text, encoding="utf-8")
+    return path
+
+
+def save_figure(figure: plt.Figure, filename: str) -> Path:
+    ensure_output_dir()
+    path = REPORTS_DIR / filename
+    figure.savefig(path, bbox_inches="tight", dpi=160)
+    plt.close(figure)
+    return path
+
+
+def format_markdown_cell(value: object, precision: int = 4, max_length: int | None = None) -> str:
+    if pd.isna(value):
+        return ""
+    if isinstance(value, float):
+        text = f"{value:.{precision}f}"
+    elif isinstance(value, int) and not isinstance(value, bool):
+        text = str(value)
+    else:
+        text = str(value)
+
+    text = text.replace("\n", " ").replace("|", "\\|")
+    if max_length is not None and len(text) > max_length:
+        return text[: max_length - 1].rstrip() + "…"
+    return text
+
+
+def dataframe_to_markdown_table(
+    frame: pd.DataFrame,
+    columns: list[tuple[str, str]] | None = None,
+    precision: int = 4,
+    max_widths: dict[str, int] | None = None,
+) -> str:
+    if columns is None:
+        columns = [(column, column) for column in frame.columns]
+    max_widths = max_widths or {}
+
+    header_labels = [label for _, label in columns]
+    rows: list[list[str]] = []
+    for _, row in frame.iterrows():
+        rows.append(
+            [
+                format_markdown_cell(row[column], precision=precision, max_length=max_widths.get(column))
+                for column, _ in columns
+            ]
+        )
+
+    widths = [len(label) for label in header_labels]
+    for row in rows:
+        for index, cell in enumerate(row):
+            widths[index] = max(widths[index], len(cell))
+
+    def render_row(values: list[str]) -> str:
+        padded = [value.ljust(widths[index]) for index, value in enumerate(values)]
+        return "| " + " | ".join(padded) + " |"
+
+    separator = "| " + " | ".join("-" * width for width in widths) + " |"
+    lines = [render_row(header_labels), separator]
+    lines.extend(render_row(row) for row in rows)
+    return "\n".join(lines)
+
+
 def build_boxplot_figure(frame: pd.DataFrame) -> plt.Figure:
-    numeric_columns = [
-        column
-        for column in numeric_feature_columns(frame)
-        if not column.startswith(BOXPLOT_EXCLUDED_PREFIXES)
-    ]
+    numeric_columns = [column for column in BOXPLOT_CORE_FEATURES if column in frame.columns and not column.startswith(BOXPLOT_EXCLUDED_PREFIXES)]
     if not numeric_columns:
         raise ValueError("No numeric columns available for boxplot generation")
 
@@ -108,24 +194,24 @@ def build_boxplot_figure(frame: pd.DataFrame) -> plt.Figure:
         axis.set_yticks([])
 
     fig.suptitle("Week 2 Numeric Feature Boxplots", fontsize=14, fontweight="bold")
+    fig.tight_layout(rect=(0, 0, 1, 0.98))
     return fig
 
 
-def save_pdf_report(report_text: str, boxplot_frame: pd.DataFrame, filename: str) -> Path:
+def save_pdf_report(markdown_path: Path, filename: str, asset_paths: dict[str, Path] | None = None) -> Path:
     ensure_output_dir()
-    output_path = PROCESSED_DIR / filename
+    output_path = REPORTS_DIR / filename
+    markdown_text = markdown_path.read_text(encoding="utf-8")
 
     with PdfPages(output_path) as pdf:
-        render_text_report(pdf, report_text, title="Week 2 Data Quality Report")
-
-        pdf.savefig(build_boxplot_figure(boxplot_frame), bbox_inches="tight")
+        render_text_report(pdf, markdown_text, title="Week 2 Data Quality Report", asset_paths=asset_paths)
 
     return output_path
 
 
 def save_text_pdf_report(report_text: str, filename: str) -> Path:
     ensure_output_dir()
-    output_path = PROCESSED_DIR / filename
+    output_path = REPORTS_DIR / filename
 
     with PdfPages(output_path) as pdf:
         render_text_report(pdf, report_text, title="Week 2 Feature Engineering Optimization Report")
@@ -133,7 +219,19 @@ def save_text_pdf_report(report_text: str, filename: str) -> Path:
     return output_path
 
 
-def render_text_report(pdf: PdfPages, report_text: str, title: str) -> None:
+def render_image_report_page(pdf: PdfPages, image_path: Path, title: str, caption: str | None = None) -> None:
+    image = plt.imread(image_path)
+    report_fig, report_ax = plt.subplots(figsize=(8.5, 11))
+    report_ax.imshow(image)
+    report_ax.axis("off")
+    report_fig.text(0.05, 0.975, title, ha="left", va="top", fontsize=18, fontweight="bold")
+    if caption:
+        report_fig.text(0.05, 0.04, caption, ha="left", va="bottom", fontsize=9)
+    pdf.savefig(report_fig, bbox_inches="tight")
+    plt.close(report_fig)
+
+
+def render_text_report(pdf: PdfPages, report_text: str, title: str, asset_paths: dict[str, Path] | None = None) -> None:
     report_fig = plt.figure(figsize=(8.5, 11))
     report_ax = report_fig.add_axes([0, 0, 1, 1])
     report_ax.axis("off")
@@ -163,6 +261,19 @@ def render_text_report(pdf: PdfPages, report_text: str, title: str) -> None:
             continue
 
         if stripped.startswith("```"):
+            continue
+
+        image_match = IMAGE_MARKDOWN_PATTERN.match(stripped)
+        if image_match is not None:
+            image_reference = image_match.group("path")
+            caption = image_match.group("alt") or None
+            image_path = None
+            if asset_paths is not None:
+                image_path = asset_paths.get(image_reference) or asset_paths.get(Path(image_reference).name)
+            if image_path is not None and image_path.exists():
+                if y < 0.18:
+                    flush_page()
+                render_image_report_page(pdf, image_path, title, caption=caption)
             continue
 
         if stripped.startswith("# "):
@@ -197,20 +308,23 @@ def render_text_report(pdf: PdfPages, report_text: str, title: str) -> None:
     plt.close(report_fig)
 
 
-def cap_iqr(series: pd.Series, factor: float = 1.5) -> pd.Series:
-    q1 = series.quantile(0.25)
-    q3 = series.quantile(0.75)
-    iqr = q3 - q1
-    lower = q1 - factor * iqr
-    upper = q3 + factor * iqr
+def cap_sigma(series: pd.Series, sigma_multiplier: float = 3.0) -> pd.Series:
+    mean = series.mean()
+    std = series.std()
+    if pd.isna(std) or std == 0:
+        return series.clip(mean, mean)
+
+    lower = mean - sigma_multiplier * std
+    upper = mean + sigma_multiplier * std
     return series.clip(lower, upper)
 
 
-def boxplot_bounds(series: pd.Series, factor: float = 1.5) -> tuple[float, float]:
-    q1 = series.quantile(0.25)
-    q3 = series.quantile(0.75)
-    iqr = q3 - q1
-    return q1 - factor * iqr, q3 + factor * iqr
+def sigma_bounds(series: pd.Series, sigma_multiplier: float = 3.0) -> tuple[float, float]:
+    mean = series.mean()
+    std = series.std()
+    if pd.isna(std) or std == 0:
+        return float(mean), float(mean)
+    return float(mean - sigma_multiplier * std), float(mean + sigma_multiplier * std)
 
 
 def numeric_feature_columns(frame: pd.DataFrame) -> list[str]:
@@ -330,7 +444,7 @@ def summarize_data_quality(frame: pd.DataFrame) -> pd.DataFrame:
             outlier_count = 0
             minimum = maximum = mean = std = float("nan")
         else:
-            lower_bound, upper_bound = boxplot_bounds(observed)
+            lower_bound, upper_bound = sigma_bounds(observed)
             outlier_mask = series.lt(lower_bound) | series.gt(upper_bound)
             outlier_count = int(outlier_mask.sum())
             minimum = float(observed.min())
@@ -347,8 +461,8 @@ def summarize_data_quality(frame: pd.DataFrame) -> pd.DataFrame:
                 "max": maximum,
                 "mean": mean,
                 "std": std,
-                "boxplot_lower": lower_bound,
-                "boxplot_upper": upper_bound,
+                "sigma_lower": lower_bound,
+                "sigma_upper": upper_bound,
                 "outlier_count": outlier_count,
                 "outlier_rate": (outlier_count / total_rows) if total_rows else 0.0,
                 "fill_strategy": fill_strategy,
@@ -368,7 +482,7 @@ def replace_boxplot_outliers(frame: pd.DataFrame) -> pd.DataFrame:
         if observed.empty:
             continue
 
-        lower_bound, upper_bound = boxplot_bounds(observed)
+        lower_bound, upper_bound = sigma_bounds(observed)
         outlier_mask = series.lt(lower_bound) | series.gt(upper_bound)
         if not outlier_mask.any():
             continue
@@ -871,6 +985,12 @@ def build_quality_report_markdown(before_frame: pd.DataFrame, cleaned_frame: pd.
     total_features = len(stats_frame)
     has_range_checks = "range_violation_count" in stats_frame.columns
     range_violations = int(stats_frame["range_violation_count"].fillna(0).sum()) if has_range_checks else 0
+    boxplot_filename = versioned_filename(QUALITY_REPORT_BOXPLOT, "png")
+    plotted_feature_count = len([column for column in BOXPLOT_CORE_FEATURES if column in before_frame.columns and not column.startswith(BOXPLOT_EXCLUDED_PREFIXES)])
+    boxplot_description = (
+        "Boxplots summarize the distribution of the core market features before cleaning so you can inspect scale, skew, and extreme values. "
+        f"This figure covers {plotted_feature_count} plotted features: price, volume, VIX, returns, and volatility."
+    )
     lines = [
         "# Week 2 Data Quality Report",
         "",
@@ -884,22 +1004,30 @@ def build_quality_report_markdown(before_frame: pd.DataFrame, cleaned_frame: pd.
         "- Macro series (`dgs10`, `vix`) use forward fill so the most recent observed level is carried forward without using future information.",
         "- Dividend features are forward-filled after quarterly aggregation because dividend values remain valid until the next announcement.",
         "- News counts and sentiment scores use neutral defaults when a day has no news, because zero activity and neutral sentiment are the least misleading assumptions.",
-        "- Any rows that still contain missing values after the documented fills are dropped before export, which removes rolling-window warm-up rows and incomplete observations.",
+        "- Rolling features keep their warm-up rows missing until enough history exists, and any remaining incomplete rows are dropped before export.",
+        "- Residual gaps are treated as incomplete observations and removed rather than guessed.",
         "",
         "## Outlier Strategy",
-        "- Outliers are identified with the boxplot rule, using the 1.5 IQR fence.",
+        "- Outliers are identified with the 3σ rule using mean ± 3 standard deviations.",
         "- Flagged values are replaced with the column median computed from inlier observations.",
-        "- This is preferred over a strict 3σ rule because the finance features are not guaranteed to be normally distributed, and the boxplot fence is more robust to skew and heavy tails.",
-        "- The boxplot figure excludes news-derived features so the plot focuses on financial series with comparable numeric scales.",
+        "- The boxplot figure is kept as a visualization aid so you can inspect the distribution of each numeric feature, but it is not the rule used for outlier detection.",
+        "- News-derived features are excluded from the boxplot figure so the plot focuses on financial series with comparable numeric scales.",
+        "",
+        "## Visualizations",
+        "",
+        "### Numeric Feature Boxplots",
+        f"Description: {boxplot_description}",
+        f"![Numeric feature boxplots]({boxplot_filename})",
         "",
         "## Range Validation",
-        "- VIX is expected to stay above 0.",
-        "- JPM return features are checked against a -10% to 10% sanity band.",
+        f"- VIX is expected to stay above 0.",
+        f"- JPM return features are checked against a -10% to 10% sanity band.",
         f"- Total range violations found: {range_violations}",
         "",
         "## Detailed Statistics",
-        f"- See `{versioned_filename(QUALITY_REPORT_CSV, 'csv')}` for the per-feature table of missing rate, min, max, mean, standard deviation, boxplot bounds, outlier counts, and fill strategy.",
-        f"- See `{versioned_filename(QUALITY_REPORT_PDF, 'pdf')}` for a combined report and chart in one file.",
+        "- The full machine-readable table remains in the CSV export if you need the per-feature metrics, bounds, and fill strategy columns.",
+        f"- See `{versioned_filename(QUALITY_REPORT_MD, 'md')}` for the editable source report.",
+        f"- See `{versioned_filename(QUALITY_REPORT_PDF, 'pdf')}` for the PDF export rendered from the Markdown source.",
     ]
     return "\n".join(lines)
 
@@ -963,7 +1091,9 @@ def main() -> dict[str, Path]:
     dataset_csv_name = versioned_filename(FEATURE_SELECTED_DATASET, DATASET_OUTPUT_EXTENSION)
     dataset_parquet_name = Path(dataset_csv_name).with_suffix(".parquet").name
     quality_report_csv_name = versioned_filename(QUALITY_REPORT_CSV, "csv")
+    quality_report_md_name = versioned_filename(QUALITY_REPORT_MD, "md")
     quality_report_pdf_name = versioned_filename(QUALITY_REPORT_PDF, "pdf")
+    quality_report_boxplot_name = versioned_filename(QUALITY_REPORT_BOXPLOT, "png")
     optimization_report_csv_name = versioned_filename(FEATURE_OPTIMIZATION_CSV, "csv")
     optimization_report_pdf_name = versioned_filename(FEATURE_OPTIMIZATION_PDF, "pdf")
     ic_report_name = versioned_filename(FEATURE_IC_REPORT, "csv")
@@ -978,7 +1108,10 @@ def main() -> dict[str, Path]:
         optimization_report_path = save_csv(optimization_report.round(6), optimization_report_csv_name)
         ic_report_path = save_csv(ic_report.round(6), ic_report_name)
         corr_matrix_path = save_csv(corr_matrix.round(6), correlation_matrix_name)
-        pdf_path = save_pdf_report(build_quality_report_markdown(quality_source, features, quality_report), quality_source, quality_report_pdf_name)
+        quality_markdown = build_quality_report_markdown(quality_source, features, quality_report)
+        quality_report_md_path = save_markdown(quality_markdown, quality_report_md_name)
+        quality_report_boxplot_path = save_figure(build_boxplot_figure(quality_source), quality_report_boxplot_name)
+        pdf_path = save_pdf_report(quality_report_md_path, quality_report_pdf_name, asset_paths={quality_report_boxplot_path.name: quality_report_boxplot_path})
         optimization_markdown = build_feature_optimization_markdown(optimization_report, corr_matrix, selected_features)
         optimization_pdf_path = save_text_pdf_report(optimization_markdown, optimization_report_pdf_name)
 
@@ -988,6 +1121,8 @@ def main() -> dict[str, Path]:
 
     print(f"[OK] Week 2 feature dataset saved to {output_path.name}")
     print(f"[OK] Data quality report saved to {quality_report_path.name}")
+    print(f"[OK] Data quality markdown saved to {quality_report_md_path.name}")
+    print(f"[OK] Data quality boxplot saved to {quality_report_boxplot_path.name}")
     print(f"[OK] Feature optimization report saved to {optimization_report_path.name}")
     print(f"[OK] Feature IC report saved to {ic_report_path.name}")
     print(f"[OK] Feature correlation matrix saved to {corr_matrix_path.name}")
@@ -999,6 +1134,8 @@ def main() -> dict[str, Path]:
     return {
         "dataset_csv": output_path,
         "quality_report_csv": quality_report_path,
+        "quality_report_md": quality_report_md_path,
+        "quality_report_boxplot": quality_report_boxplot_path,
         "optimization_report_csv": optimization_report_path,
         "ic_report_csv": ic_report_path,
         "correlation_matrix_csv": corr_matrix_path,

@@ -7,7 +7,7 @@ This project builds a daily modeling table from JPM market data, FRED rates, VIX
 - Aligns JPM, DGS10, and VIX series on a shared daily index.
 - Forward-fills macro series and interpolates price fields where appropriate.
 - Produces a data quality report with per-feature missing rate, min, max, mean, standard deviation, and outlier counts.
-- Identifies outliers with boxplot fences and replaces flagged values with the feature median.
+- Identifies outliers with the 3σ rule and replaces flagged values with the feature median.
 - Documents the missing-value strategy for price, macro, dividend, and news-derived features.
 - Exports a combined PDF report that places the written summary and the boxplot figure in one file.
 - Builds the optimized feature set by pruning features with absolute Pearson correlation above 0.8 and keeping only features with absolute IC above 0.03.
@@ -53,4 +53,6 @@ This project builds a daily modeling table from JPM market data, FRED rates, VIX
 - `data/processed/week2_feature_optimization_report_v1.0_YYYYMMDD.csv`
 - `data/processed/week2_feature_ic_report_v1.0_YYYYMMDD.csv`
 - `data/processed/week2_feature_correlation_matrix_v1.0_YYYYMMDD.csv`
+- `data/processed/week2_data_quality_report_v1.0_YYYYMMDD.md`
+- `data/processed/week2_data_quality_report_boxplot_v1.0_YYYYMMDD.png`
 - `data/processed/week2_feature_optimization_report_v1.0_YYYYMMDD.pdf`
