@@ -249,11 +249,19 @@ def test_yahoo_finance() -> bool:
         "region": "US",
     }
 
+    yahoo_cache = DATA_DIR / "yahoo_jpm_2018_2024.csv"
+    dividend_cache = DATA_DIR / "jpm_dividends_2018_2024.csv"
+
     try:
         response = retry_request(url, params=params)
         payload = response.json()
     except Exception as error:  # noqa: BLE001 - network failures are expected here
         print(f"[WARN] Yahoo Finance unavailable for JPM: {error}")
+        if yahoo_cache.exists():
+            ok(f"Yahoo Finance cache already exists and will be reused: {yahoo_cache.name}")
+            if dividend_cache.exists():
+                ok(f"JPM dividend cache already exists and will be reused: {dividend_cache.name}")
+            return True
         return False
 
     chart = payload.get("chart", {})
@@ -317,6 +325,11 @@ def test_yahoo_finance() -> bool:
 
 
 def test_fred(api_key: str, series_id: str, filename: str) -> None:
+    existing_path = DATA_DIR / filename
+    if existing_path.exists():
+        ok(f"FRED {series_id} file already exists and will be reused: {existing_path.name}")
+        return
+
     url = "https://api.stlouisfed.org/fred/series/observations"
     params = {
         "series_id": series_id,
@@ -326,9 +339,14 @@ def test_fred(api_key: str, series_id: str, filename: str) -> None:
         "observation_end": "2024-12-31",
     }
 
-    response = requests.get(url, params=params, timeout=30)
-    response.raise_for_status()
-    payload = response.json()
+    try:
+        response = requests.get(url, params=params, timeout=30)
+        response.raise_for_status()
+        payload = response.json()
+    except Exception as error:  # noqa: BLE001 - network failures are expected here
+        print(f"[WARN] FRED {series_id} download failed (network unavailable): {error}")
+        fail(f"FRED {series_id} download failed and no local cache exists at {existing_path}")
+        return
 
     observations = payload.get("observations", [])
     if not observations:

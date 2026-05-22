@@ -23,7 +23,7 @@
 
 ### Numeric Feature Boxplots
 Description: Boxplots summarize the distribution of the core market features before cleaning so you can inspect scale, skew, and extreme values. This figure covers 12 plotted features: price, volume, VIX, returns, and volatility.
-![Numeric feature boxplots](week2_data_quality_report_boxplot_v1.0_20260521.png)
+![Numeric feature boxplots](week2_data_quality_report_boxplot_v1.0_20260522.png)
 
 ## Range Validation
 - VIX is expected to stay above 0.
@@ -32,5 +32,5 @@ Description: Boxplots summarize the distribution of the core market features bef
 
 ## Detailed Statistics
 - The full machine-readable table remains in the CSV export if you need the per-feature metrics, bounds, and fill strategy columns.
-- See `week2_data_quality_report_v1.0_20260521.md` for the editable source report.
-- See `week2_data_quality_report_v1.0_20260521.pdf` for the PDF export rendered from the Markdown source.
+- See `week2_data_quality_report_v1.0_20260522.md` for the editable source report.
+- See `week2_data_quality_report_v1.0_20260522.pdf` for the PDF export rendered from the Markdown source.
