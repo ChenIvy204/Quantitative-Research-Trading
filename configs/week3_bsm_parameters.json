@@ -1,0 +1,10 @@
+{
+  "spot_price": 156.7,
+  "strike_price": 150.0,
+  "risk_free_rate": 0.0015,
+  "dividend_yield": 0.0233,
+  "volatility": 0.282,
+  "decision_time_years": 0.5,
+  "maturity_years": 1.0,
+  "source_note": "Week 3 paper table: JPM stock price 156.7, risk-free rate 0.15%, sigma 28.2%, strike 150, dividend yield 2.33%, decision time 0.5 years, maturity 1 year"
+}

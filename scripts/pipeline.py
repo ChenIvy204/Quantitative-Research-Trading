@@ -9,6 +9,7 @@ import pandas as pd  # pyright: ignore[reportMissingImports]
 
 from apis import main as run_week1_downloads
 from preprocess import main as run_week2_preprocessing
+from week3_bsm import main as run_week3_bsm
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -73,6 +74,14 @@ def main() -> None:
         print(f"[OK] Parquet dataset saved to {parquet_path.name}")
     else:
         logger.warning("CSV output not found at %s", csv_path)
+
+    # Week 3: BSM chooser-option replication and validation.
+    print_section("Week 3 - Original BSM Model Replication")
+    with step_timer("Week 3 replication and validation"):
+        week3_outputs = run_week3_bsm()
+    if isinstance(week3_outputs, dict):
+        for label, path in week3_outputs.items():
+            print(f"[OK] {label} saved to {path.name}")
 
     print_section("Pipeline Complete")
     print("One-command workflow finished. Check warnings above for any source-specific limitations.")

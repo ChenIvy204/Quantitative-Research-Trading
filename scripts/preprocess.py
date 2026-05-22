@@ -9,6 +9,13 @@ import textwrap
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
 import pandas as pd
+from reportlab.lib import colors
+from reportlab.lib.enums import TA_CENTER, TA_LEFT
+from reportlab.lib.pagesizes import letter
+from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
+from reportlab.lib.units import inch
+from reportlab.platypus import Image as RLImage
+from reportlab.platypus import PageBreak, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -127,6 +134,318 @@ def save_figure(figure: plt.Figure, filename: str) -> Path:
     figure.savefig(path, bbox_inches="tight", dpi=160)
     plt.close(figure)
     return path
+
+
+def save_markdown_pdf_report(markdown_path: Path, filename: str, title: str, asset_paths: dict[str, Path] | None = None) -> Path:
+    ensure_output_dir()
+    output_path = REPORTS_DIR / filename
+    markdown_text = markdown_path.read_text(encoding="utf-8")
+
+    build_markdown_pdf(output_path, markdown_text, title=title, asset_paths=asset_paths)
+
+    return output_path
+
+
+def escape_reportlab_text(value: str) -> str:
+    return (
+        value.replace("&", "&amp;")
+        .replace("<", "&lt;")
+        .replace(">", "&gt;")
+        .replace("\n", "<br/>")
+    )
+
+
+def formula_to_reportlab_markup(value: str) -> str:
+    text = value.strip()
+    if text.startswith("$$") and text.endswith("$$"):
+        text = text[2:-2].strip()
+
+    text = text.replace(r"\left", "")
+    text = text.replace(r"\right", "")
+    text = text.replace(r"\times", "*")
+    text = text.replace(r"\exp", "exp")
+    text = text.replace(r"\sqrt", "sqrt")
+    text = text.replace(r"\,", " ")
+    text = text.replace(r"\;", " ")
+    text = text.replace(r"\:", " ")
+    text = text.replace(r"\quad", " ")
+    text = text.replace(r"\qquad", " ")
+
+    text = re.sub(r"([A-Za-z0-9]+)_\{([^{}]+)\}", r"\1<sub>\2</sub>", text)
+    text = re.sub(r"([A-Za-z0-9]+)_([A-Za-z0-9]+)", r"\1<sub>\2</sub>", text)
+    text = re.sub(r"([A-Za-z0-9]+)\^\{([^{}]+)\}", r"\1<super>\2</super>", text)
+    text = re.sub(r"([A-Za-z0-9]+)\^([A-Za-z0-9.+\-()/*]+)", r"\1<super>\2</super>", text)
+
+    text = text.replace("\\", "")
+    text = text.replace("{", "")
+    text = text.replace("}", "")
+    return text
+
+
+def markdown_table_to_flowable(table_lines: list[str], styles: dict[str, ParagraphStyle], page_width: float) -> Table | None:
+    def split_row(row: str) -> list[str]:
+        return [cell.strip() for cell in row.strip().strip("|").split("|")]
+
+    rows = [split_row(line) for line in table_lines if line.strip().startswith("|") and line.strip().endswith("|")]
+    if not rows:
+        return None
+
+    headers = rows[0]
+    body_rows: list[list[str]] = []
+    for row in rows[1:]:
+        if all(set(cell) <= {"-", ":"} for cell in row):
+            continue
+        normalized = row[: len(headers)] + [""] * max(0, len(headers) - len(row))
+        body_rows.append(normalized)
+
+    table_data: list[list[Paragraph]] = []
+    table_data.append([Paragraph(escape_reportlab_text(cell), styles["table_header"]) for cell in headers])
+    for row in body_rows:
+        table_data.append([Paragraph(escape_reportlab_text(cell), styles["table_cell"]) for cell in row])
+
+    column_count = max(len(headers), 1)
+    available_width = page_width - 1.0 * inch
+    if column_count == 1:
+        col_widths = [available_width]
+    else:
+        first_column_ratio = 0.24 if column_count >= 2 else 1.0
+        other_ratio = (1.0 - first_column_ratio) / (column_count - 1) if column_count > 1 else 0.0
+        col_widths = [available_width * first_column_ratio] + [available_width * other_ratio for _ in range(column_count - 1)]
+
+    table = Table(table_data, colWidths=col_widths, repeatRows=1)
+    table.setStyle(
+        TableStyle(
+            [
+                ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#203864")),
+                ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+                ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                ("FONTSIZE", (0, 0), (-1, -1), 9),
+                ("LEADING", (0, 0), (-1, -1), 11),
+                ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.whitesmoke, colors.HexColor("#eef3f8")]),
+                ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#b7c0ce")),
+                ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                ("LEFTPADDING", (0, 0), (-1, -1), 6),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 6),
+                ("TOPPADDING", (0, 0), (-1, -1), 5),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
+            ]
+        )
+    )
+    return table
+
+
+def build_markdown_pdf(output_path: Path, markdown_text: str, title: str, asset_paths: dict[str, Path] | None = None) -> None:
+    styles = getSampleStyleSheet()
+    styles.add(
+        ParagraphStyle(
+            name="ReportTitle",
+            parent=styles["Title"],
+            fontName="Helvetica-Bold",
+            fontSize=18,
+            leading=22,
+            alignment=TA_LEFT,
+            textColor=colors.HexColor("#1f2937"),
+            spaceAfter=12,
+        )
+    )
+    styles.add(
+        ParagraphStyle(
+            name="ReportHeading1",
+            parent=styles["Heading1"],
+            fontName="Helvetica-Bold",
+            fontSize=15,
+            leading=18,
+            textColor=colors.HexColor("#1f2937"),
+            spaceBefore=10,
+            spaceAfter=6,
+        )
+    )
+    styles.add(
+        ParagraphStyle(
+            name="ReportHeading2",
+            parent=styles["Heading2"],
+            fontName="Helvetica-Bold",
+            fontSize=12,
+            leading=15,
+            textColor=colors.HexColor("#334155"),
+            spaceBefore=8,
+            spaceAfter=4,
+        )
+    )
+    styles.add(
+        ParagraphStyle(
+            name="ReportHeading3",
+            parent=styles["Heading3"],
+            fontName="Helvetica-Bold",
+            fontSize=10.5,
+            leading=13,
+            textColor=colors.HexColor("#475569"),
+            spaceBefore=6,
+            spaceAfter=3,
+        )
+    )
+    styles.add(
+        ParagraphStyle(
+            name="ReportBody",
+            parent=styles["BodyText"],
+            fontName="Helvetica",
+            fontSize=9.5,
+            leading=12,
+            spaceAfter=4,
+        )
+    )
+    styles.add(
+        ParagraphStyle(
+            name="ReportBullet",
+            parent=styles["BodyText"],
+            fontName="Helvetica",
+            fontSize=9.5,
+            leading=12,
+            leftIndent=12,
+            firstLineIndent=-8,
+            bulletIndent=0,
+            spaceAfter=2,
+        )
+    )
+    styles.add(
+        ParagraphStyle(
+            name="ReportCaption",
+            parent=styles["BodyText"],
+            fontName="Helvetica-Oblique",
+            fontSize=8.5,
+            leading=10,
+            textColor=colors.HexColor("#4b5563"),
+            spaceBefore=2,
+            spaceAfter=8,
+        )
+    )
+    styles.add(
+        ParagraphStyle(
+            name="ReportFormula",
+            parent=styles["BodyText"],
+            fontName="Helvetica",
+            fontSize=11,
+            leading=14,
+            alignment=TA_CENTER,
+            spaceBefore=4,
+            spaceAfter=8,
+        )
+    )
+    styles.add(
+        ParagraphStyle(
+            name="table_header",
+            parent=styles["BodyText"],
+            fontName="Helvetica-Bold",
+            fontSize=8.5,
+            leading=10,
+            textColor=colors.white,
+        )
+    )
+    styles.add(
+        ParagraphStyle(
+            name="table_cell",
+            parent=styles["BodyText"],
+            fontName="Helvetica",
+            fontSize=8.5,
+            leading=10,
+        )
+    )
+
+    story: list[object] = [Paragraph(escape_reportlab_text(title), styles["ReportTitle"]), Spacer(1, 0.08 * inch)]
+    lines = markdown_text.splitlines()
+    index = 0
+    while index < len(lines):
+        stripped = lines[index].strip()
+
+        if not stripped:
+            story.append(Spacer(1, 0.08 * inch))
+            index += 1
+            continue
+
+        if stripped.startswith("# ") and stripped[2:].strip() == title:
+            index += 1
+            continue
+
+        if stripped.startswith("# "):
+            story.append(Paragraph(escape_reportlab_text(stripped[2:].strip()), styles["ReportHeading1"]))
+            index += 1
+            continue
+
+        if stripped.startswith("## "):
+            story.append(Paragraph(escape_reportlab_text(stripped[3:].strip()), styles["ReportHeading2"]))
+            index += 1
+            continue
+
+        if stripped.startswith("### "):
+            story.append(Paragraph(escape_reportlab_text(stripped[4:].strip()), styles["ReportHeading3"]))
+            index += 1
+            continue
+
+        if stripped.startswith("![") and stripped.endswith(")"):
+            match = IMAGE_MARKDOWN_PATTERN.match(stripped)
+            if match is not None:
+                image_reference = match.group("path")
+                caption = match.group("alt") or None
+                image_path = None
+                if asset_paths is not None:
+                    image_path = asset_paths.get(image_reference) or asset_paths.get(Path(image_reference).name)
+                if image_path is not None and image_path.exists():
+                    image = RLImage(str(image_path))
+                    max_width = letter[0] - 1.2 * inch
+                    max_height = 4.8 * inch
+                    scale = min(max_width / image.drawWidth, max_height / image.drawHeight, 1.0)
+                    image.drawWidth *= scale
+                    image.drawHeight *= scale
+                    story.append(image)
+                    if caption:
+                        story.append(Paragraph(escape_reportlab_text(caption), styles["ReportCaption"]))
+                    story.append(Spacer(1, 0.08 * inch))
+            index += 1
+            continue
+
+        if stripped.startswith("|") and stripped.endswith("|"):
+            table_lines = [stripped]
+            index += 1
+            while index < len(lines) and lines[index].strip().startswith("|") and lines[index].strip().endswith("|"):
+                table_lines.append(lines[index].strip())
+                index += 1
+            table = markdown_table_to_flowable(table_lines, styles, letter[0])
+            if table is not None:
+                story.append(table)
+                story.append(Spacer(1, 0.1 * inch))
+            continue
+
+        if stripped.startswith("- "):
+            story.append(Paragraph(f"• {escape_reportlab_text(stripped[2:].strip())}", styles["ReportBullet"]))
+            index += 1
+            continue
+
+        if stripped.startswith("$$") and stripped.endswith("$$"):
+            story.append(Paragraph(formula_to_reportlab_markup(stripped), styles["ReportFormula"]))
+            index += 1
+            continue
+
+        story.append(Paragraph(escape_reportlab_text(stripped), styles["ReportBody"]))
+        index += 1
+
+    def add_page_number(canvas, doc) -> None:  # noqa: ANN001
+        canvas.saveState()
+        canvas.setFont("Helvetica", 8)
+        canvas.setFillColor(colors.HexColor("#6b7280"))
+        canvas.drawRightString(letter[0] - 0.5 * inch, 0.4 * inch, f"Page {doc.page}")
+        canvas.restoreState()
+
+    doc = SimpleDocTemplate(
+        str(output_path),
+        pagesize=letter,
+        leftMargin=0.6 * inch,
+        rightMargin=0.6 * inch,
+        topMargin=0.65 * inch,
+        bottomMargin=0.6 * inch,
+        title=title,
+        author="GitHub Copilot",
+    )
+    doc.build(story, onFirstPage=add_page_number, onLaterPages=add_page_number)
 
 
 def build_feature_optimization_figure(optimization_report: pd.DataFrame, selected_features: list[str]) -> plt.Figure:
@@ -422,22 +741,15 @@ def build_boxplot_figure(frame: pd.DataFrame) -> plt.Figure:
 
 
 def save_pdf_report(markdown_path: Path, filename: str, asset_paths: dict[str, Path] | None = None) -> Path:
-    ensure_output_dir()
-    output_path = REPORTS_DIR / filename
-    markdown_text = markdown_path.read_text(encoding="utf-8")
-
-    with PdfPages(output_path) as pdf:
-        render_text_report(pdf, markdown_text, title="Week 2 Data Quality Report", asset_paths=asset_paths)
-
-    return output_path
+    return save_markdown_pdf_report(markdown_path, filename, title="Week 2 Data Quality Report", asset_paths=asset_paths)
 
 
-def save_text_pdf_report(report_text: str, filename: str) -> Path:
+def save_text_pdf_report(report_text: str, filename: str, title: str = "Week 2 Feature Engineering Optimization Report") -> Path:
     ensure_output_dir()
     output_path = REPORTS_DIR / filename
 
     with PdfPages(output_path) as pdf:
-        render_text_report(pdf, report_text, title="Week 2 Feature Engineering Optimization Report")
+        render_text_report(pdf, report_text, title=title)
 
     return output_path
 
@@ -452,6 +764,111 @@ def render_image_report_page(pdf: PdfPages, image_path: Path, title: str, captio
         report_fig.text(0.05, 0.04, caption, ha="left", va="bottom", fontsize=9)
     pdf.savefig(report_fig, bbox_inches="tight")
     plt.close(report_fig)
+
+
+def is_markdown_table_row(line: str) -> bool:
+    stripped = line.strip()
+    return stripped.startswith("|") and stripped.endswith("|") and stripped.count("|") >= 2
+
+
+def is_markdown_table_separator(row: str) -> bool:
+    stripped = row.strip().strip("|")
+    if not stripped:
+        return False
+    cells = [cell.strip() for cell in stripped.split("|")]
+    return all(cell and set(cell) <= {"-", ":"} for cell in cells)
+
+
+def parse_markdown_table_rows(table_lines: list[str]) -> tuple[list[str], list[list[str]]]:
+    def split_row(row: str) -> list[str]:
+        cells = [cell.strip() for cell in row.strip().strip("|").split("|")]
+        return cells
+
+    rows = [split_row(line) for line in table_lines if is_markdown_table_row(line)]
+    if not rows:
+        return [], []
+
+    headers = rows[0]
+    body_rows: list[list[str]] = []
+    for row in rows[1:]:
+        if len(row) == len(headers) and any(set(cell) <= {"-", ":"} for cell in row):
+            continue
+        normalized_row = row[: len(headers)] + [""] * max(0, len(headers) - len(row))
+        body_rows.append(normalized_row)
+
+    return headers, body_rows
+
+
+def wrap_table_cell(value: object, max_width: int) -> str:
+    text = format(value, ".6f") if isinstance(value, float) else str(value)
+    if not text:
+        return ""
+    if len(text) <= max_width:
+        return text
+    return textwrap.fill(text, width=max_width, break_long_words=False, break_on_hyphens=False)
+
+
+def render_table_pages(pdf: PdfPages, headers: list[str], rows: list[list[str]], title: str, subtitle: str | None = None) -> None:
+    if not headers:
+        return
+
+    total_rows = len(rows)
+    if total_rows == 0:
+        rows = [["No rows available" for _ in headers]]
+        total_rows = 1
+
+    max_rows_per_page = 18 if len(headers) <= 4 else 15 if len(headers) <= 8 else 12
+    available_width = max(10, min(28, 88 // max(len(headers), 1)))
+
+    for start_index in range(0, total_rows, max_rows_per_page):
+        end_index = min(start_index + max_rows_per_page, total_rows)
+        page_rows = rows[start_index:end_index]
+        figure, axis = plt.subplots(figsize=(8.5, 11))
+        axis.axis("off")
+
+        figure.text(0.05, 0.975, title, ha="left", va="top", fontsize=18, fontweight="bold")
+        if subtitle:
+            figure.text(0.05, 0.935, subtitle, ha="left", va="top", fontsize=10, color="#444444")
+        figure.text(
+            0.05,
+            0.905,
+            f"Rows {start_index + 1}-{end_index} of {total_rows}",
+            ha="left",
+            va="top",
+            fontsize=9,
+            color="#666666",
+        )
+
+        wrapped_rows = [[wrap_table_cell(cell, available_width) for cell in row] for row in page_rows]
+        table = axis.table(
+            cellText=wrapped_rows,
+            colLabels=[wrap_table_cell(header, available_width) for header in headers],
+            cellLoc="left",
+            colLoc="left",
+            loc="upper center",
+            bbox=[0.04, 0.09, 0.92, 0.78],
+        )
+        table.auto_set_font_size(False)
+        table.set_fontsize(8 if len(headers) <= 6 else 7.2)
+
+        for (row_index, col_index), cell in table.get_celld().items():
+            cell.set_edgecolor("#b7c0ce")
+            cell.set_linewidth(0.6)
+            cell.PAD = 0.08
+            if row_index == 0:
+                cell.set_facecolor("#203864")
+                cell.get_text().set_color("white")
+                cell.get_text().set_weight("bold")
+            elif row_index % 2 == 0:
+                cell.set_facecolor("#f6f8fb")
+
+        pdf.savefig(figure, bbox_inches="tight")
+        plt.close(figure)
+
+
+def render_markdown_table_block(pdf: PdfPages, table_lines: list[str], title: str, subtitle: str | None = None) -> None:
+    headers, rows = parse_markdown_table_rows(table_lines)
+    render_table_pages(pdf, headers, rows, title, subtitle=subtitle)
 
 
 def render_text_report(pdf: PdfPages, report_text: str, title: str, asset_paths: dict[str, Path] | None = None) -> None:
@@ -473,17 +890,24 @@ def render_text_report(pdf: PdfPages, report_text: str, title: str, asset_paths:
         report_fig.text(0.05, 0.975, title, ha="left", va="top", fontsize=18, fontweight="bold")
         y = 0.95
 
-    for line in report_text.splitlines():
+    lines = report_text.splitlines()
+    index = 0
+    while index < len(lines):
+        line = lines[index]
         stripped = line.strip()
+
         if not stripped:
             y -= 0.012
+            index += 1
             continue
 
         if not skipped_title_line and stripped.startswith("# ") and stripped[2:].strip() == title:
             skipped_title_line = True
+            index += 1
             continue
 
         if stripped.startswith("```"):
+            index += 1
             continue
 
         image_match = IMAGE_MARKDOWN_PATTERN.match(stripped)
@@ -497,6 +921,28 @@ def render_text_report(pdf: PdfPages, report_text: str, title: str, asset_paths:
                 if y < 0.18:
                     flush_page()
                 render_image_report_page(pdf, image_path, title, caption=caption)
+            index += 1
+            continue
+
+        if is_markdown_table_row(stripped):
+            table_lines = [stripped]
+            index += 1
+            while index < len(lines) and is_markdown_table_row(lines[index]):
+                table_lines.append(lines[index].strip())
+                index += 1
+
+            if y < 0.3:
+                flush_page()
+            else:
+                flush_page()
+
+            render_markdown_table_block(pdf, table_lines, title)
+
+            report_fig = plt.figure(figsize=(8.5, 11))
+            report_ax = report_fig.add_axes([0, 0, 1, 1])
+            report_ax.axis("off")
+            report_fig.text(0.05, 0.975, title, ha="left", va="top", fontsize=18, fontweight="bold")
+            y = 0.95
             continue
 
         if stripped.startswith("# "):

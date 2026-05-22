@@ -77,6 +77,25 @@ It expects these GitHub Secrets:
 
 The workflow uploads the processed CSV and Parquet files as artifacts after a successful run.
 
+### 6. Week 3 chooser-option replication
+
+Week 3 adds a reusable Black-Scholes chooser-option implementation and validation outputs based on the paper's JPM parameter table.
+
+- Core code: [scripts/week3_bsm.py](scripts/week3_bsm.py)
+- Paper parameters: [configs/week3_bsm_parameters.json](configs/week3_bsm_parameters.json)
+- Replication notebook: [notebooks/week3_bsm_replication.ipynb](notebooks/week3_bsm_replication.ipynb)
+- Validation notebook: [notebooks/week3_bsm_validation.ipynb](notebooks/week3_bsm_validation.ipynb)
+
+Run it directly with:
+
+```bash
+python scripts/week3_bsm.py
+```
+
+The script writes a versioned CSV summary under `data/processed/` and a Markdown validation report under `data/reports/`.
+It also writes a PDF version of the same report, with markdown tables rendered as standalone formatted tables instead of raw pipe text.
+The Week 3 report now includes the Table 2 inputs, an explicit simulation setup section with the random seed and GBM drift assumption, a paper reference table, and split comparison tables so the row-by-row differences are easier to read.
+
 ### Feature engineering reference
 
 See [docs/feature_engineering.md](docs/feature_engineering.md) for a concise description of the engineered features and preprocessing steps.
