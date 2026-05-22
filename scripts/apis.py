@@ -301,14 +301,44 @@ def test_yahoo_finance() -> bool:
     path = save_csv(history, "yahoo_jpm_2018_2024.csv")
     ok(f"Yahoo Finance returned {len(history)} rows for JPM and saved {path.name}")
 
+    if dividend_cache.exists():
+        ok(f"JPM dividend cache already exists and will be reused: {dividend_cache.name}")
+        return True
+
+    dividend_events = data.get("events", {}).get("dividends", {})
+    if dividend_events:
+        dividend_rows: list[dict[str, object]] = []
+        for timestamp_text, dividend_info in dividend_events.items():
+            dividend_rows.append(
+                {
+                    "date": pd.to_datetime(int(timestamp_text), unit="s"),
+                    "dividend": dividend_info.get("amount"),
+                }
+            )
+
+        dividend_frame = pd.DataFrame(dividend_rows)
+        if not dividend_frame.empty:
+            dividend_frame = dividend_frame.set_index("date").sort_index()
+            dividend_frame = dividend_frame.loc[START_DATE:END_DATE_EXCLUSIVE]
+            if not dividend_frame.empty:
+                dividend_path = save_csv(dividend_frame, "jpm_dividends_2018_2024.csv")
+                ok(f"Yahoo Finance returned {len(dividend_frame)} dividend rows for JPM and saved {dividend_path.name}")
+                return True
+
     try:
-        history_with_actions = yf.Ticker("JPM").history(period="max", auto_adjust=False, actions=True)
+        history_with_actions = yf.Ticker("JPM").history(start=START_DATE, end=END_DATE_EXCLUSIVE, auto_adjust=False, actions=True)
     except Exception as error:  # noqa: BLE001 - network failures are expected here
         print(f"[WARN] Yahoo Finance dividend history unavailable for JPM: {error}")
+        if dividend_cache.exists():
+            ok(f"JPM dividend cache already exists and will be reused: {dividend_cache.name}")
+            return True
         return True
 
     if history_with_actions is None or history_with_actions.empty or "Dividends" not in history_with_actions.columns:
-        print("[WARN] Yahoo Finance returned no dividend history for JPM")
+        if dividend_cache.exists():
+            ok(f"JPM dividend cache already exists and will be reused: {dividend_cache.name}")
+        else:
+            print("[WARN] Yahoo Finance returned no dividend history for JPM")
         return True
 
     dividend_frame = history_with_actions[["Dividends"]].rename(columns={"Dividends": "dividend"})
