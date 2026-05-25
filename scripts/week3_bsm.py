@@ -29,6 +29,9 @@ DEFAULT_CONFIG_PATH = CONFIG_DIR / "week3_bsm_parameters.json"
 
 logger = logging.getLogger("week3_bsm")
 
+# =========================
+# 论文表格参考数据
+# =========================
 PAPER_TABLE3_ROWS = [
     {"row": 1, "paper_st1": 118.33, "paper_choice": "PUT", "paper_st2": 116.77, "paper_payoff": 33.23},
     {"row": 2, "paper_st1": 222.63, "paper_choice": "CALL", "paper_st2": 192.89, "paper_payoff": 42.89},
@@ -55,6 +58,9 @@ class BsmChooserParameters:
     source_note: str = "Week 3 paper parameter table"
 
 
+# =========================
+# 基础工具函数
+# =========================
 def versioned_filename(stem: str, extension: str) -> str:
     return f"{stem}_{PIPELINE_VERSION}_{RUN_DATE}.{extension}"
 
@@ -126,6 +132,9 @@ def black_scholes_put(
     )
 
 
+# =========================
+# 参数加载与基础定价
+# =========================
 def load_parameters(config_path: Path | None = None) -> BsmChooserParameters:
     path = config_path or DEFAULT_CONFIG_PATH
     payload = json.loads(path.read_text(encoding="utf-8"))
@@ -178,6 +187,7 @@ def chooser_valuation_breakdown(parameters: BsmChooserParameters) -> dict[str, f
 
 def build_sensitivity_table(parameters: BsmChooserParameters) -> pd.DataFrame:
     rows: list[dict[str, float]] = []
+    # 通过改变标的价格，观察 chooser 价值与各腿价值的联动方向。
     for multiplier in [0.85, 0.95, 1.00, 1.05, 1.15]:
         spot_price = parameters.spot_price * multiplier
         temp_parameters = BsmChooserParameters(
@@ -210,6 +220,9 @@ def gbm_next_price(start_price: float, shock: float, time_years: float, drift: f
     return start_price * exp((drift - 0.5 * volatility**2) * time_years + shock * volatility * sqrt(time_years))
 
 
+# =========================
+# Table 3 复现模拟
+# =========================
 def build_table3_simulation(parameters: BsmChooserParameters, drift: float, seed: int, path_count: int = 10) -> pd.DataFrame:
     rng = random.Random(seed)
     first_period_years = parameters.decision_time_years
@@ -219,6 +232,7 @@ def build_table3_simulation(parameters: BsmChooserParameters, drift: float, seed
     for row_number in range(1, path_count + 1):
         z1 = rng.normalvariate(0.0, 1.0)
         z2 = rng.normalvariate(0.0, 1.0)
+        # 第一步先决定行权偏好，再根据选择路径推进到到期日。
         model_st1 = gbm_next_price(parameters.spot_price, z1, first_period_years, drift, parameters.volatility)
         model_choice = "CALL" if model_st1 > parameters.strike_price else "PUT"
         model_st2 = gbm_next_price(model_st1, z2, second_period_years, drift, parameters.volatility)
@@ -226,6 +240,9 @@ def build_table3_simulation(parameters: BsmChooserParameters, drift: float, seed
 
         rows.append(
             {
+# =========================
+# 统计汇总与对比表
+# =========================
                 "row": row_number,
                 "z1": z1,
                 "z2": z2,
@@ -375,6 +392,9 @@ def dataframe_to_markdown(frame: pd.DataFrame) -> str:
     return "\n".join(markdown_lines)
 
 
+# =========================
+# Greeks 计算与敏感性分析
+# =========================
 def merton_greeks(S, K, T, r, q, v, is_call=True):
     if T <= 0:
         return {"delta": 0.0, "gamma": 0.0, "vega": 0.0, "theta": 0.0, "rho": 0.0}
@@ -418,12 +438,11 @@ def get_chooser_greeks(parameters: BsmChooserParameters) -> dict[str, float]:
     cg = merton_greeks(S, K, T, r, q, v, is_call=True)
     pg = merton_greeks(S, K_prime, tau, r, q, v, is_call=False)
     
-    # Put Rho is adjusted for the fact that variable K' depends on risk_free_rate
-    # dP/dr_total = dP_merton/dr + dP/dK' * dK'/dr = pg["rho"] + exp(-rtau)*N(-d2) * (-tau * K')
-    # Because pg["rho"] is -K' * tau * exp(-rtau)*N(-d2), the sum is exactly 2.0 * pg["rho"].
+    # Put 的 rho 需要考虑调整后的执行价 K' 也依赖 r。
+    # 这里把链式法则的额外项一起计入，得到总 rho。
     rho_p_total = 2.0 * pg["rho"]
     
-    # Numerical theta due to decay of options lifetimes
+    # Theta 用一个很小的时间差做数值差分，方便展示总体时间衰减。
     dt = 1e-4
     v_current = chooser_valuation_breakdown(parameters)["chooser_value"]
     
@@ -441,6 +460,7 @@ def get_chooser_greeks(parameters: BsmChooserParameters) -> dict[str, float]:
 
 
 def build_greeks_dataframe(parameters: BsmChooserParameters) -> pd.DataFrame:
+    # 把 call、put、chooser 三个对象的 Greeks 放在同一张表里，便于报告展示。
     cg = merton_greeks(parameters.spot_price, parameters.strike_price, parameters.maturity_years, parameters.risk_free_rate, parameters.dividend_yield, parameters.volatility, is_call=True)
     
     tau = parameters.maturity_years - parameters.decision_time_years
@@ -475,6 +495,9 @@ def build_greeks_dataframe(parameters: BsmChooserParameters) -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
+# =========================
+# Monte Carlo 收敛性验证
+# =========================
 def run_monte_carlo_convergence(parameters: BsmChooserParameters, seed: int = 17170) -> pd.DataFrame:
     S_0, K, r, q, v, t, T = (
         parameters.spot_price,
@@ -497,7 +520,7 @@ def run_monte_carlo_convergence(parameters: BsmChooserParameters, seed: int = 17
         z1 = z1_max[:n]
         z2 = z2_max[:n]
         
-        # Rubinstein simulation
+        # Rubinstein exact 版本：先在选择时刻决定 call / put，再把剩余期限继续推进。
         S_t = S_0 * np.exp((r - q - 0.5 * v**2) * t + v * np.sqrt(t) * z1)
         K_prime_rubby = K * np.exp(-(r - q) * (T - t))
         choice_call = S_t > K_prime_rubby
@@ -508,7 +531,7 @@ def run_monte_carlo_convergence(parameters: BsmChooserParameters, seed: int = 17
         rubby_std = np.std(disc_rubby, ddof=1)
         rubby_se = rubby_std / np.sqrt(n)
         
-        # Split simulation
+        # Split-leg 版本：call leg 和 put leg 分开模拟，便于对比论文基准写法。
         S_T_c = S_0 * np.exp((r - q - 0.5 * v**2) * T + v * np.sqrt(T) * z1)
         payoff_call = np.maximum(S_T_c - K, 0.0)
         disc_call = np.exp(-r * T) * payoff_call
@@ -538,6 +561,9 @@ def run_monte_carlo_convergence(parameters: BsmChooserParameters, seed: int = 17
     return pd.DataFrame(rows)
 
 
+# =========================
+# 选择时点 t 与期权价值关系
+# =========================
 def build_t_vs_value_data(parameters: BsmChooserParameters) -> pd.DataFrame:
     S, K, r, q, v, T = (
         parameters.spot_price,
@@ -569,6 +595,9 @@ def build_t_vs_value_data(parameters: BsmChooserParameters) -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
+# =========================
+# 图表生成
+# =========================
 def generate_plots(
     parameters: BsmChooserParameters,
     mc_df: pd.DataFrame,
@@ -576,7 +605,7 @@ def generate_plots(
 ) -> dict[str, Path]:
     ensure_output_dirs()
     
-    # 1. Greeks sensitivity
+    # 图 1：Greeks 对标的价格的敏感性
     S_vals = np.linspace(100.0, 200.0, 100)
     greek_history = []
     for s in S_vals:
@@ -615,7 +644,7 @@ def generate_plots(
     fig.savefig(greeks_plot_path, dpi=160, bbox_inches="tight")
     plt.close(fig)
     
-    # 2. MC Convergence
+    # 图 2：Monte Carlo 收敛性与 95% 置信区间
     fig, ax = plt.subplots(figsize=(8, 5))
     ax.errorbar(
         mc_df["Paths"],
@@ -672,7 +701,7 @@ def generate_plots(
     fig.savefig(convergence_plot_path, dpi=160, bbox_inches="tight")
     plt.close(fig)
     
-    # 3. t vs Value
+    # 图 3：选择时间 t 与期权价值的关系
     fig, ax = plt.subplots(figsize=(8, 5))
     ax.plot(
         t_vs_v_df["t"],
@@ -729,6 +758,9 @@ def generate_plots(
     }
 
 
+# =========================
+# 报告正文与导出
+# =========================
 def build_report_markdown(
     parameters: BsmChooserParameters,
     summary_frame: pd.DataFrame,
@@ -868,6 +900,9 @@ def save_markdown(markdown_text: str, filename: str) -> Path:
     return path
 
 
+# =========================
+# 主流程编排
+# =========================
 def build_validation_frames(parameters: BsmChooserParameters) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     breakdown = chooser_valuation_breakdown(parameters)
     summary_frame = pd.DataFrame(
@@ -900,6 +935,7 @@ def main(config_path: Path | None = None) -> dict[str, Path]:
     parameters = load_parameters(config_path)
     drift = parameters.risk_free_rate - parameters.dividend_yield
     seed = int(round(parameters.spot_price * 100)) + int(round(parameters.strike_price * 10))
+    # 先准备基础校验数据，再生成收敛数据和图表，最后统一输出报告文件。
     summary_frame, sensitivity_frame, greeks_frame = build_validation_frames(parameters)
     
     # Run Monte Carlo and decision time datasets
