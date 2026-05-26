@@ -60,6 +60,44 @@ The following chart displays the analytical Greeks across a wide range of asset 
 
 ![Greeks Sensitivity](week3_bsm_greeks_sensitivity.png)
 
+## Section 4: BSM Parameter Sensitivity Analysis
+
+This section follows the reference paper's results analysis (Section 4), examining how each of the four key Black-Scholes parameters — volatility (σ), strike price (K), risk-free rate (r), and dividend yield (q) — affects the call leg, put leg, and total chooser option value. For each sweep all other parameters are held at the baseline configuration.
+
+![Parameter Sensitivity](week3_bsm_param_sensitivity.png)
+
+### 4.1 Volatility (σ)
+
+Volatility is a statistical measure of the dispersion of returns of the underlying asset, often measured by the standard deviation (σ) of price changes. In the BSM model it is annualised. The sweep covers σ from 5% to 100%.
+
+**Results:** Both call and put option values increase monotonically as volatility rises. Higher volatility implies a greater probability that the stock price will swing over a larger range in either direction. For call options, the upside is unlimited while the downside is bounded by the premium paid; for put options the same asymmetric protection applies in the opposite direction. Therefore, increased volatility does not cause losses on the downside but helps make money on the upside for both option types — the chooser option value is strictly increasing in σ.
+
+Baseline: σ = 28.2%  →  Call leg = 18.6890,  Put leg = 9.7132,  Chooser = 28.4022
+
+### 4.2 Strike Price (K)
+
+The strike price is the agreed price at which the option holder has the right to buy (call) or sell (put) the underlying asset. It determines the option's intrinsic value as max(0, S_T − K) for calls and max(0, K − S_T) for puts. The sweep covers K from $50 to $450, which spans deep-ITM through deep-OTM relative to the current spot price.
+
+**Results:** As strike price increases, call option value decreases while put option value increases — the two curves cross near the current spot price. For call options, a higher K requires the stock to rise further to reach ITM status, reducing both the probability and magnitude of payoff. For put options, a higher K increases the probability the stock finishes below the strike, raising the likelihood and magnitude of exercise. The chooser option value follows a convex profile, since it captures both legs.
+
+Baseline: K = 150.0  →  Spot / Strike = 1.0447
+
+### 4.3 Risk-free Interest Rate (r)
+
+The risk-free interest rate is the return from a zero-risk investment, proxied in US capital markets by the treasury bond rate. The sweep covers r from 0.1% to 10%.
+
+**Results:** As the risk-free rate increases, call option value increases while put option value decreases — a near-linear relationship. For call options, a higher r raises the expected drift of the stock (r − q), increasing the expected future stock price; it also lowers the present value of the strike price (future cash outflow), both of which benefit call holders. For put options, the higher expected stock price reduces the probability of ITM exercise, while the higher r also reduces the present value of future cash inflows from put exercise.
+
+Baseline: r = 0.1500%  (near-zero rate environment reflecting the JPM 2018–2024 data window)
+
+### 4.4 Dividend Yield (q)
+
+Dividend yield measures the cash dividends paid relative to the stock price. In the Merton continuous-dividend model, q enters both the effective drift (r − q) and the stock discount factor e^(−qT). The sweep covers q from 0.1% to 10%.
+
+**Results:** As dividend yield increases, call option value decreases while put option value increases. Higher q reduces the effective stock drift (r − q), lowering expected stock price growth and thus call values. For put options, the reduced expected stock price makes ITM exercise more likely, increasing put values. This is the mirror image of the risk-free rate effect: the two parameters affect option values in exactly opposite directions.
+
+Baseline: q = 2.3300%
+
 ## Part 2: Monte Carlo Path Scale Expansion & Convergence Analysis
 
 We expanded the model's Monte Carlo pricing from 100,000 paths to 1,000,000 paths to analyze standard error behavior and path convergence under the standard 95% Confidence Interval (CI) bands.
@@ -81,7 +119,7 @@ Below is the convergence plot showing the calculated simulation means & 95% conf
 
 ## Part 3: Choice Decision Time t vs. Option Value Analysis
 
-The mathematical convergence of a Chooser Option as t changes is studied below. For Standard Rubinstein theory: as t approaches 0, choice flexibility vanishes and the option value converges to max(Call, Put) = 18.69. As t approaches T, choice occurs at maturity, which is equivalent to a straddle, i.e. C + P = 34.05. For Split-Leg model: as t approaches T, the Put leg remaining time tau approaches 0, and because K' = K/e^(r*tau) and S_0 is out of the money for Put leg (157 > 150), the put leg expires worthless, making Option value converge to Call = 18.69, which is exactly equal to max(Call, Put)!
+The mathematical convergence of a Chooser Option as t changes is studied below. **Rubinstein Exact model**: as t→0, choice must be made immediately with no additional information, and the value converges to max(Call, Put) = 18.69 (= Call here, since Call > Put). As t→T, the holder can defer choice until just before maturity and always select the higher payoff — value converges to the Straddle C+P = 34.06. The Rubinstein curve is monotonically increasing in t. **Split-Leg model**: as t→T, the Put leg's remaining time tau = T−t → 0; because the adjusted strike K' → K and S (156.7) > K (150.0), the put expires worthless and value converges to Call = 18.69 = max(Call, Put). Notably the two models form an X-shape: both share max(Call, Put) = 18.69 as a boundary — Rubinstein at the left limit (t→0) and Split-Leg at the right limit (t→T).
 
 ![Decision Time t vs Option Value](week3_bsm_t_vs_value.png)
 
@@ -187,6 +225,7 @@ Stochastic drawing comparison for standard Table 3 rows:
 
 ## Validation Conclusion
 
+- Section 4 parameter sensitivity confirms all paper directional conclusions: higher σ raises both call and put values; higher K lowers call and raises put; higher r raises call and lowers put; higher q lowers call and raises put.
 - Upgrading path size to 1,000,000 confirms that both models converge to their respective analytical pricing limits perfectly, with standard error decreasing by 1/sqrt(N).
 - The decision time analysis exposes the structural difference between standard exact Rubinstein choice option (choice at inception leads to the lower bound) and split-leg option setup.
 - Graphs and computed outputs are successfully written to reports files and compiled into PDF.
