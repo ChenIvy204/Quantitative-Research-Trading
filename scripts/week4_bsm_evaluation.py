@@ -38,12 +38,14 @@ import logging
 from datetime import datetime
 from math import erf, exp, log, sqrt
 from pathlib import Path
+from statistics import NormalDist
 
 import numpy as np
 import pandas as pd
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
+from matplotlib.patches import Patch
 
 # ── Paths ─────────────────────────────────────────────────────────────────────
 ROOT           = Path(__file__).resolve().parents[1]
@@ -240,6 +242,7 @@ def run_evaluation(market_df: pd.DataFrame, sentiment: pd.Series) -> pd.DataFram
                     mc_price_val = mc_price(S, K, T, r, q, sigma,
                                             opt_type, MC_PATHS, rng)
 
+                    residual = bsm_price - mc_price_val
                     abs_err = abs(bsm_price - mc_price_val)
                     sq_err  = (bsm_price - mc_price_val) ** 2
 
@@ -257,6 +260,7 @@ def run_evaluation(market_df: pd.DataFrame, sentiment: pd.Series) -> pd.DataFram
                         "option_type": opt_type,
                         "bsm_price":   round(bsm_price, 6),
                         "mc_price":    round(mc_price_val, 6),
+                        "residual":    round(residual, 6),
                         "abs_error":   round(abs_err, 6),
                         "sq_error":    round(sq_err, 8),
                         "sentiment":   round(sent, 6) if not np.isnan(sent) else np.nan,
@@ -335,6 +339,37 @@ def compute_sentiment_gap(eval_df: pd.DataFrame) -> pd.DataFrame:
 
 
 # =============================================================================
+# 7a. Markdown table helpers
+# =============================================================================
+
+def _markdown_cell(value: object) -> str:
+    if pd.isna(value):
+        text = ""
+    elif isinstance(value, (float, np.floating)):
+        text = f"{value:.6f}".rstrip("0").rstrip(".")
+    else:
+        text = str(value)
+    return text.replace("|", r"\|")
+
+
+def dataframe_to_markdown(frame: pd.DataFrame, columns: list[str] | None = None) -> str:
+    table = frame.copy()
+    if columns is not None:
+        table = table[columns]
+
+    headers = list(table.columns)
+    lines = [
+        "| " + " | ".join(_markdown_cell(header) for header in headers) + " |",
+        "| " + " | ".join("---" for _ in headers) + " |",
+    ]
+
+    for _, row in table.iterrows():
+        lines.append("| " + " | ".join(_markdown_cell(row[col]) for col in headers) + " |")
+
+    return "\n".join(lines)
+
+
+# =============================================================================
 # 7. Charts
 # =============================================================================
 
@@ -351,13 +386,33 @@ def plot_error_timeseries(eval_df: pd.DataFrame, out_path: Path) -> None:
 
     fig, axes = plt.subplots(2, 1, figsize=(12, 7), sharex=True)
 
-    axes[0].bar(daily["date"], daily["mean_abs_error"],
-                color=colours, width=20, alpha=0.8)
+    axes[0].bar(
+        daily["date"],
+        daily["mean_abs_error"],
+        color=colours,
+        width=20,
+        alpha=0.85,
+        edgecolor="white",
+        linewidth=0.6,
+    )
     axes[0].set_ylabel("Mean |BSM − MC|  ($)")
     axes[0].set_title("Week 4: BSM vs MC Daily Mean Absolute Error")
-    for label, colour in colour_map.items():
-        axes[0].bar([], [], color=colour, label=f"VIX regime: {label}")
-    axes[0].legend(fontsize=8)
+    legend_handles = [
+        Patch(facecolor=colour_map["low"], edgecolor="white", label=f"Low VIX (< {VIX_LOW})"),
+        Patch(facecolor=colour_map["medium"], edgecolor="white", label=f"Medium VIX ({VIX_LOW} to < {VIX_HIGH})"),
+        Patch(facecolor=colour_map["high"], edgecolor="white", label=f"High VIX (>= {VIX_HIGH})"),
+    ]
+    axes[0].legend(handles=legend_handles, fontsize=8, loc="upper right", title="Bar color")
+    axes[0].text(
+        0.01,
+        0.95,
+        "Bars are colored by VIX regime",
+        transform=axes[0].transAxes,
+        fontsize=8,
+        va="top",
+        ha="left",
+        bbox={"facecolor": "white", "alpha": 0.8, "edgecolor": "#cccccc", "boxstyle": "round,pad=0.25"},
+    )
 
     axes[1].plot(daily["date"], daily["vix"], color="black", linewidth=0.8)
     axes[1].axhline(VIX_LOW,  color="#FF9800", linestyle="--", linewidth=0.7, label=f"VIX={VIX_LOW}")
@@ -425,6 +480,70 @@ def plot_sentiment_scatter(eval_df: pd.DataFrame, sentiment_daily: pd.DataFrame,
     logger.info(f"Saved chart → {out_path.name}")
 
 
+def plot_residuals_vs_fitted(eval_df: pd.DataFrame, out_path: Path) -> None:
+    """Residual diagnostic: residuals against fitted BSM prices."""
+    colour_map = {"low": "#2196F3", "medium": "#FF9800", "high": "#F44336"}
+    fig, ax = plt.subplots(figsize=(8, 5))
+    point_colours = eval_df["regime"].map(colour_map)
+    ax.scatter(
+        eval_df["bsm_price"],
+        eval_df["residual"],
+        c=point_colours,
+        s=18,
+        alpha=0.5,
+        edgecolors="none",
+    )
+    ax.axhline(0.0, color="black", linestyle="--", linewidth=0.9)
+    ax.set_xlabel("Fitted value (BSM price)")
+    ax.set_ylabel("Residual (BSM - MC)")
+    ax.set_title("Residuals vs Fitted Values")
+    legend_handles = [
+        Patch(facecolor=colour_map["low"], edgecolor="white", label=f"Low VIX (< {VIX_LOW})"),
+        Patch(facecolor=colour_map["medium"], edgecolor="white", label=f"Medium VIX ({VIX_LOW} to < {VIX_HIGH})"),
+        Patch(facecolor=colour_map["high"], edgecolor="white", label=f"High VIX (>= {VIX_HIGH})"),
+    ]
+    ax.legend(handles=legend_handles, fontsize=8, title="Point color")
+    plt.tight_layout()
+    fig.savefig(out_path, dpi=150, bbox_inches="tight")
+    plt.close(fig)
+    logger.info(f"Saved chart → {out_path.name}")
+
+
+def plot_residuals_qq(eval_df: pd.DataFrame, out_path: Path) -> None:
+    """Q-Q plot against a standard normal after residual standardisation."""
+    residuals = eval_df["residual"].dropna().to_numpy()
+    if residuals.size < 3:
+        logger.warning("Not enough residuals available – skipping Q-Q plot.")
+        return
+
+    mean = residuals.mean()
+    std = residuals.std(ddof=1)
+    if std == 0:
+        logger.warning("Residual standard deviation is zero – skipping Q-Q plot.")
+        return
+
+    z_scores = np.sort((residuals - mean) / std)
+    n = z_scores.size
+    probabilities = (np.arange(1, n + 1) - 0.5) / n
+    normal = NormalDist()
+    theoretical = np.array([normal.inv_cdf(p) for p in probabilities])
+
+    slope, intercept = np.polyfit(theoretical, z_scores, 1)
+    fit_line = slope * theoretical + intercept
+
+    fig, ax = plt.subplots(figsize=(8.5, 6.5))
+    ax.scatter(theoretical, z_scores, s=16, alpha=0.55, color="#1976D2")
+    ax.plot(theoretical, fit_line, color="#D32F2F", linestyle="--", linewidth=1.2, label="Reference line")
+    ax.set_xlabel("Theoretical Normal Quantiles")
+    ax.set_ylabel("Standardized Residual Quantiles")
+    ax.set_title("Q-Q Plot of Pricing Residuals")
+    ax.legend(fontsize=8)
+    plt.tight_layout()
+    fig.savefig(out_path, dpi=150, bbox_inches="tight")
+    plt.close(fig)
+    logger.info(f"Saved chart → {out_path.name}")
+
+
 # =============================================================================
 # 8. Markdown validation report
 # =============================================================================
@@ -441,20 +560,19 @@ def build_validation_report(
     med_m        = metrics_df[metrics_df["group"] == "regime=medium"]
     high_m       = metrics_df[metrics_df["group"] == "regime=high"]
 
-    def fmt_regime(subset):
-        if subset.empty:
-            return "N/A"
-        r = subset.iloc[0]
-        return f"MAE={r['MAE']:.4f}, RMSE={r['RMSE']:.4f}, n={int(r['n'])}"
-
     n_dates  = eval_df["date"].nunique()
     n_rows   = len(eval_df)
 
     sentiment_corr = sentiment_summary.set_index("metric")["value"].to_dict()
 
-    maturity_table = metrics_df[metrics_df["group"].str.startswith("maturity=")].to_string(index=False)
-    type_table     = metrics_df[metrics_df["group"].str.startswith("type=")].to_string(index=False)
-    regime_table   = metrics_df[metrics_df["group"].str.startswith("regime=")].to_string(index=False)
+    maturity_table = dataframe_to_markdown(
+        metrics_df[metrics_df["group"].str.startswith("maturity=")],
+        ["group", "n", "MAE", "RMSE", "max_abs_err"],
+    )
+    type_table = dataframe_to_markdown(
+        metrics_df[metrics_df["group"].str.startswith("type=")],
+        ["group", "n", "MAE", "RMSE", "max_abs_err"],
+    )
 
     report = f"""# Week 4 – Model Validation Report: BSM Error Metrics
 
@@ -486,7 +604,7 @@ sampled monthly → **{n_rows:,} pricing observations** over **{n_dates} dates**
 |--------|-------|
 | MAE (overall) | {overall["MAE"]:.6f} |
 | RMSE (overall) | {overall["RMSE"]:.6f} |
-| Max |BSM − MC| | {overall["max_abs_err"]:.6f} |
+| Max \\|BSM − MC\\| | {overall["max_abs_err"]:.6f} |
 | Total observations | {int(overall["n"]):,} |
 
 These values quantify the numerical convergence gap between the BSM
@@ -513,13 +631,9 @@ scales as σ × √(T/N), so high-σ, long-T options show the largest gaps.
 
 ## 3. Error by Maturity and Option Type
 
-```
 {maturity_table}
-```
 
-```
 {type_table}
-```
 
 Longer maturities accumulate more GBM variance, making MC estimates noisier and
 increasing |BSM − MC|.  Calls and puts exhibit similar error levels due to
@@ -531,8 +645,8 @@ put-call parity symmetry.
 
 | Metric | Value |
 |--------|-------|
-| Pearson corr(sentiment, mean |BSM−MC|) | {sentiment_corr.get("pearson_corr(sentiment, mean_abs_error)", "N/A")} |
-| Spearman corr(sentiment, mean |BSM−MC|) | {sentiment_corr.get("spearman_corr(sentiment, mean_abs_error)", "N/A")} |
+| Pearson corr(sentiment, mean \\|BSM−MC\\|) | {sentiment_corr.get("pearson_corr(sentiment, mean_abs_error)", "N/A")} |
+| Spearman corr(sentiment, mean \\|BSM−MC\\|) | {sentiment_corr.get("spearman_corr(sentiment, mean_abs_error)", "N/A")} |
 | Mean error on positive-sentiment days | {sentiment_corr.get("mean_abs_error_positive_sentiment", "N/A")} |
 | Mean error on negative-sentiment days | {sentiment_corr.get("mean_abs_error_negative_sentiment", "N/A")} |
 
@@ -551,6 +665,10 @@ looking historical volatility used in BSM, widening the BSM–MC gap.
 ![Regime Boxplot](week4_bsm_regime_boxplot.png)
 
 ![Sentiment Scatter](week4_bsm_sentiment_scatter.png)
+
+![Residuals vs Fitted](week4_bsm_residuals_vs_fitted.png)
+
+![Residual Q-Q Plot](week4_bsm_residuals_qq.png)
 """
     return report
 
@@ -570,7 +688,10 @@ def build_benchmark_report(
     high_m  = metrics_df[metrics_df["group"] == "regime=high"]
     sentiment_corr = sentiment_summary.set_index("metric")["value"].to_dict()
 
-    full_table = metrics_df.to_string(index=False)
+    full_table = dataframe_to_markdown(
+        metrics_df,
+        ["group", "n", "MAE", "RMSE", "max_abs_err"],
+    )
 
     def _mae(sub): return sub.iloc[0]["MAE"] if not sub.empty else float("nan")
     def _rmse(sub): return sub.iloc[0]["RMSE"] if not sub.empty else float("nan")
@@ -610,12 +731,12 @@ numbers to demonstrate improvement.
 
 | Metric | Baseline value |
 |--------|----------------|
-| **Overall MAE** | **{overall["MAE"]:.6f}** |
-| **Overall RMSE** | **{overall["RMSE"]:.6f}** |
+| Overall MAE | {overall["MAE"]:.6f} |
+| Overall RMSE | {overall["RMSE"]:.6f} |
 | Max absolute error | {overall["max_abs_err"]:.6f} |
 | Low-VIX MAE  (VIX < {VIX_LOW}) | {_mae(low_m):.6f} |
 | Mid-VIX MAE  ({VIX_LOW}–{VIX_HIGH}) | {_mae(med_m):.6f} |
-| **High-VIX MAE (VIX ≥ {VIX_HIGH})** | **{_mae(high_m):.6f}** |
+| High-VIX MAE (VIX ≥ {VIX_HIGH}) | {_mae(high_m):.6f} |
 | Low-VIX RMSE | {_rmse(low_m):.6f} |
 | Mid-VIX RMSE | {_rmse(med_m):.6f} |
 | High-VIX RMSE | {_rmse(high_m):.6f} |
@@ -627,9 +748,7 @@ numbers to demonstrate improvement.
 
 All sub-group MAE / RMSE values for complete traceability:
 
-```
 {full_table}
-```
 
 ---
 
@@ -659,6 +778,176 @@ All sub-group MAE / RMSE values for complete traceability:
 |--------|-----------------|------|
 | Overall MAE | {overall["MAE"]:.6f} | < {overall["MAE"]*0.8:.6f} (−20%) |
 | High-VIX MAE | {_mae(high_m):.6f} | < {_mae(high_m)*0.75:.6f} (−25%) |
+| Sentiment correlation | {sentiment_corr.get("pearson_corr(sentiment, mean_abs_error)", "N/A")} | ≈ 0 (model absorbs sentiment) |
+"""
+    return report
+
+
+def build_combined_report(
+    eval_df: pd.DataFrame,
+    metrics_df: pd.DataFrame,
+    sentiment_summary: pd.DataFrame,
+) -> str:
+    overall = metrics_df[metrics_df["group"] == "overall"].iloc[0]
+    low_m = metrics_df[metrics_df["group"] == "regime=low"]
+    med_m = metrics_df[metrics_df["group"] == "regime=medium"]
+    high_m = metrics_df[metrics_df["group"] == "regime=high"]
+    n_dates = eval_df["date"].nunique()
+    n_rows = len(eval_df)
+    sentiment_corr = sentiment_summary.set_index("metric")["value"].to_dict()
+
+    maturity_table = dataframe_to_markdown(
+        metrics_df[metrics_df["group"].str.startswith("maturity=")],
+        ["group", "n", "MAE", "RMSE", "max_abs_err"],
+    )
+    type_table = dataframe_to_markdown(
+        metrics_df[metrics_df["group"].str.startswith("type=")],
+        ["group", "n", "MAE", "RMSE", "max_abs_err"],
+    )
+    full_table = dataframe_to_markdown(
+        metrics_df,
+        ["group", "n", "MAE", "RMSE", "max_abs_err"],
+    )
+
+    def _mae(sub):
+        return sub.iloc[0]["MAE"] if not sub.empty else float("nan")
+
+    def _rmse(sub):
+        return sub.iloc[0]["RMSE"] if not sub.empty else float("nan")
+
+    report = f"""# Week 4 – BSM Model Validation and Performance Benchmark
+
+**Run date**: {RUN_DATE}  |  **Pipeline version**: {PIPELINE_VER}
+
+## Methodology
+
+The BSM analytical closed-form prices are treated as *model predictions*.
+Monte Carlo (MC) simulation prices (N={MC_PATHS:,} paths, GBM under risk-neutral
+measure, seed={MC_SEED}) serve as the independent benchmark ("actual prices").
+MAE and RMSE measure how closely the BSM formula approximates the MC benchmark
+across different market regimes.
+
+Parameters are derived from JPM historical market data (2018–2024):
+- **S**: JPM daily close price
+- **σ**: {VOL_WINDOW}-day rolling historical annualised volatility
+- **r**: US 10-year Treasury yield (DGS10)
+- **q**: trailing-twelve-month dividend yield
+- **VIX regime**: Low < {VIX_LOW}, Medium {VIX_LOW}–{VIX_HIGH}, High ≥ {VIX_HIGH}
+
+Evaluation grid: {len(MATURITIES)} maturities × {len(MONEYNESS)} moneyness levels × 2 option types,
+sampled monthly → **{n_rows:,} pricing observations** over **{n_dates} dates**.
+
+---
+
+## 1. Model Validation Report with Error Metrics
+
+### 1.1 Overall Error Metrics
+
+| Metric | Value |
+|--------|-------|
+| MAE (overall) | {overall["MAE"]:.6f} |
+| RMSE (overall) | {overall["RMSE"]:.6f} |
+| Max \\|BSM − MC\\| | {overall["max_abs_err"]:.6f} |
+| Total observations | {int(overall["n"]):,} |
+
+These values quantify the numerical convergence gap between the BSM
+analytical formula and the MC simulation benchmark. Both are generated
+under identical GBM assumptions, so deviations arise from MC sampling
+variance rather than from mismatched pricing assumptions.
+
+### 1.2 Error by VIX Regime
+
+| Regime | MAE | RMSE | n |
+|--------|-----|------|---|
+| Low (VIX < {VIX_LOW}) | {low_m.iloc[0]["MAE"] if not low_m.empty else "N/A":.6f} | {low_m.iloc[0]["RMSE"] if not low_m.empty else "N/A":.6f} | {int(low_m.iloc[0]["n"]) if not low_m.empty else 0} |
+| Medium ({VIX_LOW}–{VIX_HIGH}) | {med_m.iloc[0]["MAE"] if not med_m.empty else "N/A":.6f} | {med_m.iloc[0]["RMSE"] if not med_m.empty else "N/A":.6f} | {int(med_m.iloc[0]["n"]) if not med_m.empty else 0} |
+| High (VIX ≥ {VIX_HIGH}) | {high_m.iloc[0]["MAE"] if not high_m.empty else "N/A":.6f} | {high_m.iloc[0]["RMSE"] if not high_m.empty else "N/A":.6f} | {int(high_m.iloc[0]["n"]) if not high_m.empty else 0} |
+
+Higher VIX regimes show larger absolute errors because the MC payoff distribution
+widens with volatility, amplifying sampling noise under a fixed number of paths.
+
+### 1.3 Error by Maturity and Option Type
+
+{maturity_table}
+
+{type_table}
+
+### 1.4 Sentiment Impact Gap Analysis
+
+| Metric | Value |
+|--------|-------|
+| Pearson corr(sentiment, mean \\|BSM−MC\\|) | {sentiment_corr.get("pearson_corr(sentiment, mean_abs_error)", "N/A")} |
+| Spearman corr(sentiment, mean \\|BSM−MC\\|) | {sentiment_corr.get("spearman_corr(sentiment, mean_abs_error)", "N/A")} |
+| Mean error on positive-sentiment days | {sentiment_corr.get("mean_abs_error_positive_sentiment", "N/A")} |
+| Mean error on negative-sentiment days | {sentiment_corr.get("mean_abs_error_negative_sentiment", "N/A")} |
+
+This gap analysis highlights where BSM lacks information sensitivity: the model
+does not ingest sentiment or event risk directly, so strong news periods can
+coincide with larger pricing deviations.
+
+### 1.5 Validation Charts
+
+![Error Time Series](week4_bsm_error_timeseries.png)
+
+![Regime Boxplot](week4_bsm_regime_boxplot.png)
+
+![Sentiment Scatter](week4_bsm_sentiment_scatter.png)
+
+![Residuals vs Fitted](week4_bsm_residuals_vs_fitted.png)
+
+![Residual Q-Q Plot](week4_bsm_residuals_qq.png)
+
+---
+
+## 2. Performance Benchmark Documentation
+
+### 2.1 Benchmark Setup
+
+| Parameter | Value |
+|-----------|-------|
+| Underlying asset | JPM (JPMorgan Chase) |
+| Evaluation period | 2018-01-01 – 2024-12-31 |
+| Sampling frequency | Monthly (month-start) |
+| Maturities | {MATURITIES} years |
+| Moneyness levels (K/S) | {MONEYNESS} |
+| Option types | Call, Put |
+| Total observations | {int(overall["n"]):,} |
+| MC benchmark paths | {MC_PATHS:,} (seed={MC_SEED}) |
+| Historical vol window | {VOL_WINDOW} trading days |
+| Risk-free rate source | FRED DGS10 |
+| Dividend yield | Trailing-twelve-month |
+
+### 2.2 Headline Baseline Metrics
+
+| Metric | Baseline value |
+|--------|----------------|
+| Overall MAE | {overall["MAE"]:.6f} |
+| Overall RMSE | {overall["RMSE"]:.6f} |
+| Max absolute error | {overall["max_abs_err"]:.6f} |
+| Low-VIX MAE (VIX < {VIX_LOW}) | {_mae(low_m):.6f} |
+| Mid-VIX MAE ({VIX_LOW}–{VIX_HIGH}) | {_mae(med_m):.6f} |
+| High-VIX MAE (VIX ≥ {VIX_HIGH}) | {_mae(high_m):.6f} |
+| Low-VIX RMSE | {_rmse(low_m):.6f} |
+| Mid-VIX RMSE | {_rmse(med_m):.6f} |
+| High-VIX RMSE | {_rmse(high_m):.6f} |
+| Sentiment–error Pearson corr | {sentiment_corr.get("pearson_corr(sentiment, mean_abs_error)", "N/A")} |
+
+### 2.3 Full Breakdown by Group
+
+{full_table}
+
+### 2.4 Key Limitations Identified
+
+1. **High-volatility failure**: MAE in high-VIX regime ({_mae(high_m):.4f}) is {_mae(high_m) / _mae(low_m) * 100:.0f}% of the low-VIX baseline ({_mae(low_m):.4f}).
+2. **Maturity effect**: Error rises with maturity because path uncertainty accumulates over longer horizons.
+3. **Sentiment gap**: A positive sentiment-error correlation indicates that event risk is not explicitly modeled.
+
+### 2.5 Improvement Targets for Future Models
+
+| Target | Current baseline | Goal |
+|--------|-----------------|------|
+| Overall MAE | {overall["MAE"]:.6f} | < {overall["MAE"] * 0.8:.6f} (−20%) |
+| High-VIX MAE | {_mae(high_m):.6f} | < {_mae(high_m) * 0.75:.6f} (−25%) |
 | Sentiment correlation | {sentiment_corr.get("pearson_corr(sentiment, mean_abs_error)", "N/A")} | ≈ 0 (model absorbs sentiment) |
 """
     return report
@@ -716,6 +1005,14 @@ def main() -> None:
         eval_df, sentiment_daily,
         REPORTS_DIR / "week4_bsm_sentiment_scatter.png"
     )
+    plot_residuals_vs_fitted(
+        eval_df,
+        REPORTS_DIR / "week4_bsm_residuals_vs_fitted.png"
+    )
+    plot_residuals_qq(
+        eval_df,
+        REPORTS_DIR / "week4_bsm_residuals_qq.png"
+    )
 
     # -- report 1: model validation report --
     validation_text = build_validation_report(eval_df, metrics_df, sentiment_summary)
@@ -729,6 +1026,12 @@ def main() -> None:
     benchmark_md.write_text(benchmark_text, encoding="utf-8")
     logger.info(f"Saved report → {benchmark_md.name}")
 
+    # -- combined report: validation + benchmark in one file --
+    combined_text = build_combined_report(eval_df, metrics_df, sentiment_summary)
+    combined_md = REPORTS_DIR / versioned("week4_bsm_combined_report", "md")
+    combined_md.write_text(combined_text, encoding="utf-8")
+    logger.info(f"Saved report → {combined_md.name}")
+
     # -- generate PDFs --
     sys.path.insert(0, str(ROOT / "scripts"))
     from preprocess import save_markdown_pdf_report
@@ -736,6 +1039,8 @@ def main() -> None:
         "week4_bsm_error_timeseries.png":  REPORTS_DIR / "week4_bsm_error_timeseries.png",
         "week4_bsm_regime_boxplot.png":    REPORTS_DIR / "week4_bsm_regime_boxplot.png",
         "week4_bsm_sentiment_scatter.png": REPORTS_DIR / "week4_bsm_sentiment_scatter.png",
+        "week4_bsm_residuals_vs_fitted.png": REPORTS_DIR / "week4_bsm_residuals_vs_fitted.png",
+        "week4_bsm_residuals_qq.png": REPORTS_DIR / "week4_bsm_residuals_qq.png",
     }
     save_markdown_pdf_report(
         validation_md,
@@ -750,6 +1055,13 @@ def main() -> None:
         "Week 4 – BSM Performance Benchmark Documentation",
     )
     logger.info(f"Saved PDF → {versioned('week4_bsm_benchmark', 'pdf')}")
+    save_markdown_pdf_report(
+        combined_md,
+        versioned("week4_bsm_combined_report", "pdf"),
+        "Week 4 – BSM Model Validation and Performance Benchmark",
+        asset_paths=chart_assets,
+    )
+    logger.info(f"Saved PDF → {versioned('week4_bsm_combined_report', 'pdf')}")
 
     # -- print summary to console --
     overall = metrics_df[metrics_df["group"] == "overall"].iloc[0]
