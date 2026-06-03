@@ -14,6 +14,8 @@ from reportlab.lib.enums import TA_CENTER, TA_LEFT
 from reportlab.lib.pagesizes import letter
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.lib.units import inch
+from reportlab.pdfbase import pdfmetrics
+from reportlab.pdfbase.cidfonts import UnicodeCIDFont
 from reportlab.platypus import Image as RLImage
 from reportlab.platypus import PageBreak, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
@@ -61,6 +63,12 @@ BOXPLOT_CORE_FEATURES = (
 
 logger = logging.getLogger("week2_pipeline")
 IMAGE_MARKDOWN_PATTERN = re.compile(r"^!\[(?P<alt>.*?)\]\((?P<path>.*?)\)$")
+REPORT_FONT = "STSong-Light"
+
+try:
+    pdfmetrics.registerFont(UnicodeCIDFont(REPORT_FONT))
+except Exception:
+    pass
 
 
 def versioned_filename(stem: str, extension: str) -> str:
@@ -218,7 +226,7 @@ def markdown_table_to_flowable(table_lines: list[str], styles: dict[str, Paragra
             [
                 ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#203864")),
                 ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
-                ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                ("FONTNAME", (0, 0), (-1, 0), REPORT_FONT),
                 ("FONTSIZE", (0, 0), (-1, -1), 9),
                 ("LEADING", (0, 0), (-1, -1), 11),
                 ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.whitesmoke, colors.HexColor("#eef3f8")]),
@@ -240,7 +248,7 @@ def build_markdown_pdf(output_path: Path, markdown_text: str, title: str, asset_
         ParagraphStyle(
             name="ReportTitle",
             parent=styles["Title"],
-            fontName="Helvetica-Bold",
+            fontName=REPORT_FONT,
             fontSize=18,
             leading=22,
             alignment=TA_LEFT,
@@ -252,7 +260,7 @@ def build_markdown_pdf(output_path: Path, markdown_text: str, title: str, asset_
         ParagraphStyle(
             name="ReportHeading1",
             parent=styles["Heading1"],
-            fontName="Helvetica-Bold",
+            fontName=REPORT_FONT,
             fontSize=15,
             leading=18,
             textColor=colors.HexColor("#1f2937"),
@@ -264,7 +272,7 @@ def build_markdown_pdf(output_path: Path, markdown_text: str, title: str, asset_
         ParagraphStyle(
             name="ReportHeading2",
             parent=styles["Heading2"],
-            fontName="Helvetica-Bold",
+            fontName=REPORT_FONT,
             fontSize=12,
             leading=15,
             textColor=colors.HexColor("#334155"),
@@ -276,7 +284,7 @@ def build_markdown_pdf(output_path: Path, markdown_text: str, title: str, asset_
         ParagraphStyle(
             name="ReportHeading3",
             parent=styles["Heading3"],
-            fontName="Helvetica-Bold",
+            fontName=REPORT_FONT,
             fontSize=10.5,
             leading=13,
             textColor=colors.HexColor("#475569"),
@@ -288,7 +296,7 @@ def build_markdown_pdf(output_path: Path, markdown_text: str, title: str, asset_
         ParagraphStyle(
             name="ReportBody",
             parent=styles["BodyText"],
-            fontName="Helvetica",
+            fontName=REPORT_FONT,
             fontSize=9.5,
             leading=12,
             spaceAfter=4,
@@ -298,7 +306,7 @@ def build_markdown_pdf(output_path: Path, markdown_text: str, title: str, asset_
         ParagraphStyle(
             name="ReportBullet",
             parent=styles["BodyText"],
-            fontName="Helvetica",
+            fontName=REPORT_FONT,
             fontSize=9.5,
             leading=12,
             leftIndent=12,
@@ -311,7 +319,7 @@ def build_markdown_pdf(output_path: Path, markdown_text: str, title: str, asset_
         ParagraphStyle(
             name="ReportCaption",
             parent=styles["BodyText"],
-            fontName="Helvetica-Oblique",
+            fontName=REPORT_FONT,
             fontSize=8.5,
             leading=10,
             textColor=colors.HexColor("#4b5563"),
@@ -323,7 +331,7 @@ def build_markdown_pdf(output_path: Path, markdown_text: str, title: str, asset_
         ParagraphStyle(
             name="ReportFormula",
             parent=styles["BodyText"],
-            fontName="Helvetica",
+            fontName=REPORT_FONT,
             fontSize=11,
             leading=14,
             alignment=TA_CENTER,
@@ -335,7 +343,7 @@ def build_markdown_pdf(output_path: Path, markdown_text: str, title: str, asset_
         ParagraphStyle(
             name="table_header",
             parent=styles["BodyText"],
-            fontName="Helvetica-Bold",
+            fontName=REPORT_FONT,
             fontSize=8.5,
             leading=10,
             textColor=colors.white,
@@ -345,7 +353,7 @@ def build_markdown_pdf(output_path: Path, markdown_text: str, title: str, asset_
         ParagraphStyle(
             name="table_cell",
             parent=styles["BodyText"],
-            fontName="Helvetica",
+            fontName=REPORT_FONT,
             fontSize=8.5,
             leading=10,
         )
@@ -430,7 +438,7 @@ def build_markdown_pdf(output_path: Path, markdown_text: str, title: str, asset_
 
     def add_page_number(canvas, doc) -> None:  # noqa: ANN001
         canvas.saveState()
-        canvas.setFont("Helvetica", 8)
+        canvas.setFont(REPORT_FONT, 8)
         canvas.setFillColor(colors.HexColor("#6b7280"))
         canvas.drawRightString(letter[0] - 0.5 * inch, 0.4 * inch, f"Page {doc.page}")
         canvas.restoreState()

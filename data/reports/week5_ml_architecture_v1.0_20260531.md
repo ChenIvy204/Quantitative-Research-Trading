@@ -1,6 +1,6 @@
 # Week 5 – Machine Learning Model Architecture Design
 
-**Run date**: 20260531  |  **Pipeline version**: v1.0
+Run date: 20260531  |  Pipeline version: v1.0
 
 ---
 
@@ -8,12 +8,16 @@
 
 This document describes the machine learning architecture designed and
 implemented in Week 5 of the Quantitative Research & Trading project.
-Two complementary approaches price European options on JPM stock:
+The work follows two complementary paths for pricing European options on
+JPM stock.
 
-- **Approach 1 (ML + BSM)**: ML models predict 20-day forward realised
-  volatility; the predicted σ is fed into the closed-form BSM formula.
-- **Approach 2 (End-to-End)**: ML models directly map option parameters
-  and market features to option prices without the BSM formula.
+In the first path, the model predicts the next 20 trading days of realised
+volatility, and that prediction is then passed into the Black-Scholes-Merton
+pricing formula.
+
+In the second path, the model learns the option price directly from the
+market data and contract settings, without using an intermediate pricing
+formula.
 
 ---
 
@@ -21,22 +25,18 @@ Two complementary approaches price European options on JPM stock:
 
 ### Approach 1
 
-$$\hat{C}/\hat{P} = \text{BSM}\!\left(S, K, T, r, q,\; \hat{\sigma}_{\text{ML}}\right)$$
-
-where $\hat{\sigma}_{\text{ML}}$ is the ML-predicted 20-day forward
-realised volatility.
-
-**Target**: $\sigma_{\text{fwd,20d}}[t] = \sqrt{252} \cdot
-\text{std}\!\left(\ln\frac{S_{t+i}}{S_{t+i-1}}\right)_{i=1}^{20}$
+The first approach estimates the 20-day forward realised volatility and
+uses that estimate inside the Black-Scholes-Merton model to obtain the
+option price. The target is the annualised realised volatility over the
+next 20 trading days.
 
 ### Approach 2
 
-$$\hat{C}/\hat{P} = f_{\theta}\!\left(S,\,K,\,T,\,r,\,q,\,m,\,\mathbf{x}_{\text{market}}\right)$$
-
-where $f_{\theta}$ is a trained ML model and $\mathbf{x}_{\text{market}}$
-is the market feature vector.
-
-**Target**: BSM price computed with 20-day historical σ.
+The second approach predicts the option price directly from the market
+feature set and contract variables such as underlying price, strike,
+expiry, interest rate, dividend yield, moneyness, and call-or-put type.
+Its target is the Black-Scholes-Merton price computed with 20-day
+historical volatility.
 
 ---
 
@@ -46,84 +46,84 @@ is the market feature vector.
 
 | Source | Description | Frequency |
 |--------|-------------|-----------|
-| `yahoo_jpm_2018_2024.csv` | JPM daily close prices | Daily |
-| `fred_DGS10_2018_2024.csv` | US 10-yr Treasury yield | Daily |
-| `fred_VIXCLS_2018_2024.csv` | CBOE VIX index | Daily |
-| `jpm_dividends_2018_2024.csv` | JPM dividend payments | Per event |
-| `alphavantage_news_jpm_2018_2024.csv` | News sentiment scores | Per article |
+| yahoo_jpm_2018_2024.csv | JPM daily close prices | Daily |
+| fred_DGS10_2018_2024.csv | US 10-yr Treasury yield | Daily |
+| fred_VIXCLS_2018_2024.csv | CBOE VIX index | Daily |
+| jpm_dividends_2018_2024.csv | JPM dividend payments | Per event |
+| alphavantage_news_jpm_2018_2024.csv | News sentiment scores | Per article |
 
 ### 3.2 Market Features (Approach 1 – Volatility Dataset)
 
-All features are strictly **backward-looking** to prevent look-ahead bias.
+All features are strictly backward-looking to prevent look-ahead bias.
 Dataset: 1,681 trading days.
 
-  - `hist_vol_5d`
-  - `hist_vol_20d`
-  - `hist_vol_60d`
-  - `vol_ratio_5_20`
-  - `vol_ratio_20_60`
-  - `vol_20d_change`
-  - `return_1d`
-  - `return_5d`
-  - `return_20d`
-  - `price_to_ma_20d`
-  - `price_to_ma_60d`
-  - `vix`
-  - `vix_change_5d`
-  - `vix_ma_ratio`
-  - `vix_jpm_corr_20d`
-  - `r`
-  - `q`
-  - `sentiment_7d`
-  - `sentiment_20d`
-  - `news_count_7d`
-  - `drawdown_20d`
+  - hist_vol_5d
+  - hist_vol_20d
+  - hist_vol_60d
+  - vol_ratio_5_20
+  - vol_ratio_20_60
+  - vol_20d_change
+  - return_1d
+  - return_5d
+  - return_20d
+  - price_to_ma_20d
+  - price_to_ma_60d
+  - vix
+  - vix_change_5d
+  - vix_ma_ratio
+  - vix_jpm_corr_20d
+  - r
+  - q
+  - sentiment_7d
+  - sentiment_20d
+  - news_count_7d
+  - drawdown_20d
 
 ### 3.3 Features (Approach 2 – Option Pricing Dataset)
 
 All market features above, plus option-specific parameters.
 Dataset: 21,420+ rows (daily dates × 18 option contracts each).
 
-  - `hist_vol_5d`
-  - `hist_vol_20d`
-  - `hist_vol_60d`
-  - `vol_ratio_5_20`
-  - `vol_ratio_20_60`
-  - `vol_20d_change`
-  - `return_1d`
-  - `return_5d`
-  - `return_20d`
-  - `price_to_ma_20d`
-  - `price_to_ma_60d`
-  - `vix`
-  - `vix_change_5d`
-  - `vix_ma_ratio`
-  - `vix_jpm_corr_20d`
-  - `r`
-  - `q`
-  - `sentiment_7d`
-  - `sentiment_20d`
-  - `news_count_7d`
-  - `drawdown_20d`
-  - `S`
-  - `K`
-  - `moneyness`
-  - `T`
-  - `is_call`
+  - hist_vol_5d
+  - hist_vol_20d
+  - hist_vol_60d
+  - vol_ratio_5_20
+  - vol_ratio_20_60
+  - vol_20d_change
+  - return_1d
+  - return_5d
+  - return_20d
+  - price_to_ma_20d
+  - price_to_ma_60d
+  - vix
+  - vix_change_5d
+  - vix_ma_ratio
+  - vix_jpm_corr_20d
+  - r
+  - q
+  - sentiment_7d
+  - sentiment_20d
+  - news_count_7d
+  - drawdown_20d
+  - S
+  - K
+  - moneyness
+  - T
+  - is_call
 
 ### 3.4 Target Variables
 
 | Approach | Target | Description |
 |----------|--------|-------------|
-| 1 | `fwd_vol_20d` | Annualised realised vol over next 20 trading days |
-| 2 | `bsm_price` | BSM price using hist_vol_20d as σ |
+| 1 | fwd_vol_20d | Annualised realised volatility over the next 20 trading days |
+| 2 | bsm_price | Black-Scholes-Merton price using 20-day historical volatility |
 
 ---
 
 ## 4. Time-Series Validation Framework
 
-Data is split **chronologically** (never randomly) to prevent look-ahead bias.
-All features are scaled using `RobustScaler` fitted **only** on the training set.
+Data is split chronologically, never randomly, to prevent look-ahead bias.
+All features are scaled using RobustScaler fitted only on the training set.
 
 | Split | Date Range | Fraction |
 |-------|-----------|----------|
@@ -138,35 +138,36 @@ All features are scaled using `RobustScaler` fitted **only** on the training set
 ### 5.1 Approach 1 – ML Volatility Prediction
 
 #### Random Forest
-- `n_estimators=300`, `max_depth=8`, `min_samples_leaf=5`
-- Preprocessing: RobustScaler
-- Input: 21 market features (1 row per trading day)
+- Uses 300 trees with a maximum depth of 8 and a minimum of 5 samples per leaf.
+- The input is scaled with RobustScaler before training.
+- Input: 21 market features, one row per trading day.
 
 #### XGBoost
-- `n_estimators=500`, `max_depth=5`, `learning_rate=0.05`
-- `subsample=0.8`, `colsample_bytree=0.8`
-- Preprocessing: RobustScaler
+- Uses 500 boosting rounds with depth 5 and a learning rate of 0.05.
+- Row and feature subsampling are both set to 0.8.
+- The input is scaled with RobustScaler before training.
 
 #### LSTM
-  - Architecture: LSTM(64) → Dropout(0.2) → LSTM(32) → Dropout(0.2) → Dense(16) → Dense(1)
-  - Lookback window: 20 trading days
-  - Optimizer: Adam | Loss: MSE | Early stopping (patience=10)
-  - Input shape: (batch, 20, 21)
+  - Architecture: two LSTM layers with 64 and 32 units, followed by two dense layers with 16 units and 1 output.
+  - Lookback window: 20 trading days.
+  - Optimizer: Adam with mean squared error loss and early stopping after 10 stagnant validation epochs.
+  - Input shape: batches of 20-day sequences with 21 features.
 
 ### 5.2 Approach 2 – End-to-End Supervised Pricing
 
 #### Linear Regression
-- Standard OLS with intercept, Preprocessing: RobustScaler
-- Input: 26 features (market + option parameters)
+- Standard ordinary least squares with an intercept term.
+- Input is scaled with RobustScaler.
+- Input: 26 features covering market variables and option parameters.
 
 #### XGBoost
-- `n_estimators=500`, `max_depth=6`, `learning_rate=0.05`
-- `subsample=0.8`, `colsample_bytree=0.8`
+- Uses 500 boosting rounds with depth 6 and a learning rate of 0.05.
+- Row and feature subsampling are both set to 0.8.
 
 #### Neural Network (MLP)
-- Architecture: Dense(128) → ReLU → Dense(64) → ReLU → Dense(32) → ReLU → Dense(1)
-- Optimizer: Adam (`lr=1e-3`), early stopping (`patience` via `validation_fraction=0.1`)
-- `max_iter=500`
+- Architecture: dense layers with 128, 64, and 32 units, followed by a single output unit.
+- Optimizer: Adam with a learning rate of 0.001 and early stopping through internal validation.
+- Maximum iterations: 500.
 
 ---
 
@@ -180,7 +181,7 @@ All features are scaled using `RobustScaler` fitted **only** on the training set
 | XGBoost | 0.07394 | 0.09706 | 4.2210 | 6.1274 |
 | LSTM | 0.08047 | 0.10774 | 4.3614 | 6.3925 |
 
-*Vol MAE/RMSE: annualised vol units. Option MAE/RMSE: USD (ATM 6-month call).*
+Vol MAE/RMSE are measured in annualised volatility units. Option MAE/RMSE are measured in USD for an at-the-money six-month call.
 
 ### 6.2 Approach 2 – End-to-End Option Pricing
 
@@ -190,28 +191,26 @@ All features are scaled using `RobustScaler` fitted **only** on the training set
 | XGBoost | 4.5111 | 6.5016 | 0.6462 |
 | NeuralNetwork | 1.7683 | 2.5551 | 0.9454 |
 
-*Target: BSM price (hist_vol_20d as σ). Evaluation grid: 3T × 3K × 2 types.*
+The target is the Black-Scholes-Merton price based on 20-day historical volatility. The evaluation grid covers three maturities, three moneyness levels, and both call and put contracts.
 
 ---
 
 ## 7. Limitations & Recommended Next Steps
 
 ### Current Limitations
-1. **No market-implied vol**: Targets are derived from historical/BSM prices,
-   not actual market option quotes.
-2. **Simplified option grid**: 3 maturities × 3 moneyness levels × 2 types.
-3. **Static features**: No real-time microstructure data (bid-ask, volume).
-4. **BSM surface learning**: Approach 2 learns the BSM surface; real prices
-   may show systematic skew/smile deviations.
+1. No market-implied volatility is used. The targets are derived from historical or Black-Scholes-Merton prices rather than live option quotes.
+2. The option grid is simplified to three maturities, three moneyness levels, and two contract types.
+3. The feature set is static and does not include real-time microstructure information such as bid-ask spread or trading volume.
+4. The second approach mainly learns the Black-Scholes-Merton surface, while real market prices may still show skew or smile effects.
 
 ### Recommended Next Steps (Week 6+)
-1. Incorporate implied volatility data for more realistic targets.
-2. Add Greeks (delta, gamma, vega) as engineered input features.
-3. Implement Bayesian hyperparameter optimisation.
-4. Extend LSTM to multi-step ahead vol forecasting.
-5. Build ensemble that combines Approach 1 and Approach 2 predictions.
-6. Evaluate on 2025+ data for out-of-sample performance.
+1. Incorporate implied volatility data to make the targets closer to market pricing.
+2. Add Greeks such as delta, gamma, and vega as engineered features.
+3. Introduce Bayesian hyperparameter optimisation.
+4. Extend the LSTM to forecast volatility over multiple future steps.
+5. Build an ensemble that combines the two approaches.
+6. Evaluate the methods on 2025 and later data for a cleaner out-of-sample test.
 
 ---
 
-*Generated by `week5_ml_models.py` | v1.0 | 20260531*
+Generated by week5_ml_models.py | v1.0 | 20260531
