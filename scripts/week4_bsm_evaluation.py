@@ -856,7 +856,7 @@ def analyze_and_plot_term_mismatch(eval_df: pd.DataFrame, out_chart_path: Path, 
     
     # Right subplot: Monthly timeseries of average mismatch error
     df_ts = df.groupby(["date", "option_type"])["mismatch_error"].mean().unstack()
-    df_ts = df_ts.resample("M").mean() # Resample to monthly average
+    df_ts = df_ts.resample("ME").mean() # Resample to monthly average
     
     axes[1].plot(df_ts.index, df_ts["call"], color="#1565C0", linewidth=2.0, label="Calls Mismatch Error")
     axes[1].plot(df_ts.index, df_ts["put"], color="#E53935", linewidth=2.0, label="Puts Mismatch Error")
