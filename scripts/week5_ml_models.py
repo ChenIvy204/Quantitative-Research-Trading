@@ -4,14 +4,14 @@ Week 5 – Machine Learning Model Design & Implementation
 
 Two-Approach Architecture
 --------------------------
-Approach 1: ML Volatility Prediction + BSM Pricing
-  - Predict 20-day forward realised volatility from market features
-  - Feed predicted vol into Black-Scholes-Merton formula
-  - Models: RandomForest, XGBoost, LSTM
+Approach 1: ML Volatility Prediction + Chooser Pricing
+    - Predict 20-day forward realised volatility from market features
+    - Feed predicted vol into the chooser-option closed form
+    - Models: RandomForest, XGBoost, LSTM
 
-Approach 2: End-to-End Supervised Option Pricing
-  - Directly predict option prices from market + option features
-  - Models: Linear Regression, XGBoost/GradientBoosting, Neural Network (MLP)
+Approach 2: End-to-End Supervised Chooser Pricing
+    - Directly predict chooser-option prices from market + contract features
+    - Models: Linear Regression, XGBoost/GradientBoosting, Neural Network (MLP)
 
 Feature Preparation
 -------------------
@@ -61,8 +61,7 @@ except ImportError:
     HAS_XGB = False
 
 try:
-    import tensorflow as tf
-    from tensorflow import keras  # noqa: F401
+    import tensorflow as tf  # type: ignore[import-not-found]
     HAS_TF = True
 except ImportError:
     HAS_TF = False
@@ -78,12 +77,12 @@ PIPELINE_VER  = "v1.0"
 RUN_DATE      = datetime.now().strftime("%Y%m%d")
 
 # ── Config ────────────────────────────────────────────────────────────────────
-ANNUALISE       = 252        # trading days / year
-VOL_WINDOW      = 20         # backward volatility window (days)
-FWD_VOL_WINDOW  = 20         # forward volatility target window (days)
-MATURITIES      = [0.25, 0.5, 1.0]
-MONEYNESS       = [0.9, 1.0, 1.1]
-OPTION_TYPES    = ["call", "put"]
+ANNUALISE             = 252        # trading days / year
+VOL_WINDOW            = 20         # backward volatility window (days)
+FWD_VOL_WINDOW        = 20         # forward volatility target window (days)
+CHOOSER_DECISION_TIMES = [0.25, 0.5]
+CHOOSER_MATURITIES    = [0.5, 1.0, 1.5]
+MONEYNESS             = [0.9, 1.0, 1.1]
 TRAIN_FRAC      = 0.70
 VAL_FRAC        = 0.15
 # TEST_FRAC     = 0.15  (implicit: remainder)
@@ -137,6 +136,26 @@ def bsm_price_vec(
     call  = S * np.exp(-q * T) * norm.cdf(d1) - K * np.exp(-r * T) * norm.cdf(d2)
     put   = K * np.exp(-r * T) * norm.cdf(-d2) - S * np.exp(-q * T) * norm.cdf(-d1)
     return np.where(is_call.astype(bool), call, put)
+
+
+def chooser_price_scalar(
+    S: float,
+    K: float,
+    T1: float,
+    T2: float,
+    r: float,
+    q: float,
+    sigma: float,
+) -> float:
+    """Chooser option price using the Rubinstein-style closed form."""
+    if T2 <= T1:
+        raise ValueError("T2 must be greater than T1 for a chooser option")
+
+    time_to_choice = T2 - T1
+    call_leg = bsm_price_scalar(S, K, T2, r, q, sigma, "call")
+    adjusted_strike = K * exp(-r * time_to_choice)
+    put_leg = bsm_price_scalar(S, adjusted_strike, time_to_choice, r, q, sigma, "put")
+    return call_leg + put_leg
 
 
 # =============================================================================
@@ -313,9 +332,9 @@ def build_vol_dataset(feat_df: pd.DataFrame) -> pd.DataFrame:
 
 def build_option_dataset(feat_df: pd.DataFrame) -> pd.DataFrame:
     """
-    Approach 2 dataset: one row per (trading day × option contract).
-    Features: market features + option parameters (S, K, T, moneyness, is_call).
-    Target:   BSM price computed with hist_vol_20d as σ.
+    Approach 2 dataset: one row per (trading day × chooser contract).
+    Features: market features + chooser parameters (S, K, moneyness, T1, T2).
+    Target:   chooser price computed with hist_vol_20d as σ.
     """
     feature_cols = get_feature_columns()
     keep = list(dict.fromkeys(
@@ -333,19 +352,21 @@ def build_option_dataset(feat_df: pd.DataFrame) -> pd.DataFrame:
         sigma = float(row["hist_vol_20d"])
         if sigma <= 0 or np.isnan(sigma) or S <= 0:
             continue
-        for T in MATURITIES:
-            for m in MONEYNESS:
-                K = S * m
-                for opt_type in OPTION_TYPES:
-                    price = bsm_price_scalar(S, K, T, r, q, sigma, opt_type)
+        for T1 in CHOOSER_DECISION_TIMES:
+            for T2 in CHOOSER_MATURITIES:
+                if T2 <= T1:
+                    continue
+                for m in MONEYNESS:
+                    K = S * m
+                    price = chooser_price_scalar(S, K, T1, T2, r, q, sigma)
                     rec: dict = {
-                        "date":      date,
-                        "S":         S,
-                        "K":         K,
+                        "date": date,
+                        "S": S,
+                        "K": K,
                         "moneyness": m,
-                        "T":         T,
-                        "is_call":   1 if opt_type == "call" else 0,
-                        "bsm_price": price,
+                        "T1": T1,
+                        "T2": T2,
+                        "chooser_price": price,
                         "vix_regime": row.get("vix_regime", "unknown"),
                     }
                     for col in feature_cols:
@@ -467,11 +488,11 @@ def _train_lstm(
         os.environ["CUDA_VISIBLE_DEVICES"]  = "-1"
         os.environ["METAL_DEVICE_WRAPPER_TYPE"] = "0"
 
-        import tensorflow as tf
+        import tensorflow as tf  # type: ignore[import-not-found]
         tf.config.set_visible_devices([], "GPU")
-        from tensorflow.keras.models import Sequential
-        from tensorflow.keras.layers import LSTM, Dense, Dropout
-        from tensorflow.keras.callbacks import EarlyStopping
+        from tensorflow.keras.models import Sequential  # type: ignore[import-not-found]
+        from tensorflow.keras.layers import LSTM, Dense, Dropout  # type: ignore[import-not-found]
+        from tensorflow.keras.callbacks import EarlyStopping  # type: ignore[import-not-found]
 
         tf.get_logger().setLevel("ERROR")
 
@@ -550,12 +571,13 @@ def _predict_vol(md: dict, X: np.ndarray, name: str) -> np.ndarray:
 def evaluate_approach1(
     models: dict,
     vol_test: pd.DataFrame,
+    opt_test: pd.DataFrame,
     feature_cols: list[str],
 ) -> pd.DataFrame:
     """
     Evaluate Approach 1 on the test set:
       - vol prediction MAE/RMSE
-      - option pricing MAE/RMSE (using predicted σ in BSM vs using historical σ)
+      - chooser pricing MAE/RMSE (using predicted σ vs historical σ)
     """
     X_test = vol_test[feature_cols].values
     y_test = vol_test["target_vol"].values
@@ -571,17 +593,23 @@ def evaluate_approach1(
         vol_mae  = mean_absolute_error(yt, vp)
         vol_rmse = float(np.sqrt(mean_squared_error(yt, vp)))
 
-        # Option pricing with predicted vs historical σ — ATM 6-month call
-        bsm_pred_arr, bsm_base_arr = [], []
-        for i, (_, row) in enumerate(sub.iterrows()):
-            sig_pred = float(vp[i])
-            sig_base = float(row["hist_vol_20d"])
-            S, r, q  = float(row["close"]), float(row["r"]), float(row["q"])
-            bsm_pred_arr.append(bsm_price_scalar(S, S, 0.5, r, q, max(sig_pred, 1e-4), "call"))
-            bsm_base_arr.append(bsm_price_scalar(S, S, 0.5, r, q, max(sig_base, 1e-4), "call"))
+        vol_pred_series = pd.Series(vp, index=sub.index)
+        opt_eval = opt_test.copy()
+        opt_eval["pred_vol"] = opt_eval.index.map(vol_pred_series)
+        opt_eval = opt_eval.dropna(subset=["pred_vol", "chooser_price", "hist_vol_20d"])
 
-        arr_pred = np.array(bsm_pred_arr)
-        arr_base = np.array(bsm_base_arr)
+        chooser_pred_arr, chooser_base_arr = [], []
+        for _, row in opt_eval.iterrows():
+            sig_pred = max(float(row["pred_vol"]), 1e-4)
+            sig_base = max(float(row["hist_vol_20d"]), 1e-4)
+            S, K = float(row["S"]), float(row["K"])
+            T1, T2 = float(row["T1"]), float(row["T2"])
+            r, q   = float(row["r"]), float(row["q"])
+            chooser_pred_arr.append(chooser_price_scalar(S, K, T1, T2, r, q, sig_pred))
+            chooser_base_arr.append(chooser_price_scalar(S, K, T1, T2, r, q, sig_base))
+
+        arr_pred = np.array(chooser_pred_arr)
+        arr_base = np.array(chooser_base_arr)
         opt_mae  = mean_absolute_error(arr_base, arr_pred)
         opt_rmse = float(np.sqrt(mean_squared_error(arr_base, arr_pred)))
 
@@ -594,7 +622,7 @@ def evaluate_approach1(
         })
         logger.info(
             "  Approach 1 | %-16s | vol MAE=%.5f RMSE=%.5f | "
-            "option MAE=%.4f RMSE=%.4f",
+            "chooser MAE=%.4f RMSE=%.4f",
             name, vol_mae, vol_rmse, opt_mae, opt_rmse,
         )
 
@@ -602,11 +630,11 @@ def evaluate_approach1(
 
 
 # =============================================================================
-# 7. Approach 2 – End-to-End Supervised Option Pricing
+# 7. Approach 2 – End-to-End Supervised Chooser Pricing
 # =============================================================================
 
 def get_pricing_feature_columns(feature_cols: list[str]) -> list[str]:
-    return feature_cols + ["S", "K", "moneyness", "T", "is_call"]
+    return feature_cols + ["S", "K", "moneyness", "T1", "T2"]
 
 
 def train_pricing_models(
@@ -615,7 +643,7 @@ def train_pricing_models(
     X_val: np.ndarray,
     y_val: np.ndarray,
 ) -> dict:
-    """Train LinearRegression, XGBoost/GBDT, and MLP for direct option pricing."""
+    """Train LinearRegression, XGBoost/GBDT, and MLP for direct chooser pricing."""
     models: dict = {}
 
     # ── Linear Regression ─────────────────────────────────────────────────
@@ -685,9 +713,9 @@ def evaluate_approach2(
     opt_test: pd.DataFrame,
     pricing_cols: list[str],
 ) -> pd.DataFrame:
-    """Evaluate Approach 2: end-to-end option pricing on the test set."""
+    """Evaluate Approach 2: end-to-end chooser pricing on the test set."""
     X_test = opt_test[pricing_cols].values
-    y_test = opt_test["bsm_price"].values
+    y_test = opt_test["chooser_price"].values
 
     rows = []
     for name, md in models.items():
@@ -789,18 +817,18 @@ def plot_pricing_results(pricing_df: pd.DataFrame, out_path: Path) -> None:
 
     axes[0].bar(pricing_df["model"], pricing_df["mae"],
                 color=_bar_color(n, palette), alpha=0.85)
-    axes[0].set_title("Direct Pricing – MAE ($)")
+    axes[0].set_title("Direct Chooser Pricing – MAE ($)")
     axes[0].set_ylabel("MAE ($)")
     axes[0].grid(axis="y", alpha=0.3)
 
     axes[1].bar(pricing_df["model"], pricing_df["r2"],
                 color=_bar_color(n, palette), alpha=0.85)
-    axes[1].set_title("Direct Pricing – R²")
+    axes[1].set_title("Direct Chooser Pricing – R²")
     axes[1].set_ylabel("R²")
     axes[1].set_ylim(0, 1.05)
     axes[1].grid(axis="y", alpha=0.3)
 
-    fig.suptitle("Approach 2 – End-to-End Option Pricing Performance (Test Set)",
+    fig.suptitle("Approach 2 – End-to-End Chooser Pricing Performance (Test Set)",
                  fontsize=12, fontweight="bold")
     plt.tight_layout()
     plt.savefig(out_path, dpi=150, bbox_inches="tight")
@@ -827,7 +855,7 @@ def plot_model_comparison(
     ax2.bar(pricing_df["model"], pricing_df["rmse"],
             color=_bar_color(len(pricing_df), ["#E91E63", "#3F51B5", "#009688"]),
             alpha=0.85)
-    ax2.set_title("Approach 2 – Pricing RMSE ($)")
+    ax2.set_title("Approach 2 – Chooser Pricing RMSE ($)")
     ax2.set_ylabel("RMSE ($)")
     ax2.tick_params(axis="x", rotation=15)
     ax2.grid(axis="y", alpha=0.3)
@@ -893,12 +921,13 @@ def generate_architecture_doc(
 
 This document describes the machine learning architecture designed and
 implemented in Week 5 of the Quantitative Research & Trading project.
-Two complementary approaches price European options on JPM stock:
+Two complementary approaches price chooser options on JPM stock:
 
-- **Approach 1 (ML + BSM)**: ML models predict 20-day forward realised
-  volatility; the predicted σ is fed into the closed-form BSM formula.
-- **Approach 2 (End-to-End)**: ML models directly map option parameters
-  and market features to option prices without the BSM formula.
+- **Approach 1 (ML + chooser closed form)**: ML models predict 20-day
+    forward realised volatility; the predicted σ is fed into the chooser
+    pricing formula.
+- **Approach 2 (End-to-End)**: ML models directly map chooser contract
+    parameters and market features to chooser prices.
 
 ---
 
@@ -906,7 +935,7 @@ Two complementary approaches price European options on JPM stock:
 
 ### Approach 1
 
-$$\\hat{{C}}/\\hat{{P}} = \\text{{BSM}}\\!\\left(S, K, T, r, q,\\; \\hat{{\\sigma}}_{{\\text{{ML}}}}\\right)$$
+$$\\hat{{V}}_{{\\text{{chooser}}}} = C\\!\\left(S, K, T_2, r, q, \\hat{{\\sigma}}_{{\\text{{ML}}}}\\right) + P\\!\\left(S, K e^{{-r(T_2-T_1)}}, T_2-T_1, r, q, \\hat{{\\sigma}}_{{\\text{{ML}}}}\\right)$$
 
 where $\\hat{{\\sigma}}_{{\\text{{ML}}}}$ is the ML-predicted 20-day forward
 realised volatility.
@@ -916,12 +945,12 @@ realised volatility.
 
 ### Approach 2
 
-$$\\hat{{C}}/\\hat{{P}} = f_{{\\theta}}\\!\\left(S,\\,K,\\,T,\\,r,\\,q,\\,m,\\,\\mathbf{{x}}_{{\\text{{market}}}}\\right)$$
+$$\\hat{{V}}_{{\\text{{chooser}}}} = f_{{\\theta}}\\!\\left(S,\\,K,\\,T_1,\\,T_2,\\,r,\\,q,\\,m,\\,\\mathbf{{x}}_{{\\text{{market}}}}\\right)$$
 
 where $f_{{\\theta}}$ is a trained ML model and $\\mathbf{{x}}_{{\\text{{market}}}}$
 is the market feature vector.
 
-**Target**: BSM price computed with 20-day historical σ.
+**Target**: chooser price computed with 20-day historical σ.
 
 ---
 
@@ -944,10 +973,10 @@ Dataset: {len(vol_train) + len(vol_val) + len(vol_test):,} trading days.
 
 {feat_list}
 
-### 3.3 Features (Approach 2 – Option Pricing Dataset)
+### 3.3 Features (Approach 2 – Chooser Pricing Dataset)
 
-All market features above, plus option-specific parameters.
-Dataset: {len(opt_train):,}+ rows (daily dates × 18 option contracts each).
+All market features above, plus chooser-specific parameters.
+Dataset: {len(opt_train):,}+ rows (daily dates × chooser contracts).
 
 {pricing_list}
 
@@ -956,7 +985,7 @@ Dataset: {len(opt_train):,}+ rows (daily dates × 18 option contracts each).
 | Approach | Target | Description |
 |----------|--------|-------------|
 | 1 | `fwd_vol_20d` | Annualised realised vol over next 20 trading days |
-| 2 | `bsm_price` | BSM price using hist_vol_20d as σ |
+| 2 | `chooser_price` | Chooser price using hist_vol_20d as σ |
 
 ---
 
@@ -990,11 +1019,11 @@ All features are scaled using `RobustScaler` fitted **only** on the training set
 #### LSTM
 {lstm_arch}
 
-### 5.2 Approach 2 – End-to-End Supervised Pricing
+### 5.2 Approach 2 – End-to-End Supervised Chooser Pricing
 
 #### Linear Regression
 - Standard OLS with intercept, Preprocessing: RobustScaler
-- Input: {len(pricing_cols)} features (market + option parameters)
+- Input: {len(pricing_cols)} features (market + chooser parameters)
 
 #### {gbm_label}
 - `n_estimators=500`, `max_depth=6`, `learning_rate=0.05`
@@ -1015,27 +1044,27 @@ All features are scaled using `RobustScaler` fitted **only** on the training set
 |-------|---------|----------|------------|-------------|
 {v_rows}
 
-*Vol MAE/RMSE: annualised vol units. Option MAE/RMSE: USD (ATM 6-month call).*
+*Vol MAE/RMSE: annualised vol units. Chooser MAE/RMSE: USD.*
 
-### 6.2 Approach 2 – End-to-End Option Pricing
+### 6.2 Approach 2 – End-to-End Chooser Pricing
 
 | Model | MAE ($) | RMSE ($) | R² |
 |-------|---------|----------|-----|
 {p_rows}
 
-*Target: BSM price (hist_vol_20d as σ). Evaluation grid: 3T × 3K × 2 types.*
+*Target: chooser price (hist_vol_20d as σ). Evaluation grid: 2T1 × 3T2 × 3K.*
 
 ---
 
 ## 7. Limitations & Recommended Next Steps
 
 ### Current Limitations
-1. **No market-implied vol**: Targets are derived from historical/BSM prices,
-   not actual market option quotes.
-2. **Simplified option grid**: 3 maturities × 3 moneyness levels × 2 types.
+1. **No market-implied vol**: Targets are derived from historical/closed-form
+    prices, not actual market option quotes.
+2. **Simplified chooser grid**: 2 decision times × 3 maturities × 3 moneyness levels.
 3. **Static features**: No real-time microstructure data (bid-ask, volume).
-4. **BSM surface learning**: Approach 2 learns the BSM surface; real prices
-   may show systematic skew/smile deviations.
+4. **Synthetic chooser surface learning**: Approach 2 learns a synthetic
+    chooser surface from historical-vol inputs; real market quotes may differ.
 
 ### Recommended Next Steps (Week 6+)
 1. Incorporate implied volatility data for more realistic targets.
@@ -1114,17 +1143,17 @@ def main() -> None:
 
     pricing_cols = get_pricing_feature_columns(feature_cols)
     X_opt_train  = opt_train[pricing_cols].values
-    y_opt_train  = opt_train["bsm_price"].values
+    y_opt_train  = opt_train["chooser_price"].values
     X_opt_val    = opt_val[pricing_cols].values
-    y_opt_val    = opt_val["bsm_price"].values
+    y_opt_val    = opt_val["chooser_price"].values
 
     # ── Approach 1 ────────────────────────────────────────────────────────
     logger.info("[5/7] Approach 1 – ML Volatility Prediction...")
     vol_models  = train_vol_models(X_vol_train, y_vol_train, X_vol_val, y_vol_val, feature_cols)
-    vol_results = evaluate_approach1(vol_models, vol_test, feature_cols)
+    vol_results = evaluate_approach1(vol_models, vol_test, opt_test, feature_cols)
 
     # ── Approach 2 ────────────────────────────────────────────────────────
-    logger.info("[6/7] Approach 2 – End-to-End Option Pricing...")
+    logger.info("[6/7] Approach 2 – End-to-End Chooser Pricing...")
     pricing_models  = train_pricing_models(X_opt_train, y_opt_train, X_opt_val, y_opt_val)
     pricing_results = evaluate_approach2(pricing_models, opt_test, pricing_cols)
 
@@ -1172,10 +1201,10 @@ def main() -> None:
     logger.info("Approach 1 – Volatility Prediction (Test Set):")
     for _, r in vol_results.iterrows():
         logger.info(
-            "  %-18s | Vol RMSE=%.5f | Option Pricing MAE=%.4f",
+            "  %-18s | Vol RMSE=%.5f | Chooser Pricing MAE=%.4f",
             r["model"], r["vol_rmse"], r["pricing_mae"],
         )
-    logger.info("Approach 2 – End-to-End Pricing (Test Set):")
+    logger.info("Approach 2 – End-to-End Chooser Pricing (Test Set):")
     for _, r in pricing_results.iterrows():
         logger.info(
             "  %-18s | MAE=%.4f | RMSE=%.4f | R²=%.4f",
