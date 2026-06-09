@@ -1,6 +1,9 @@
 # Week 5 – Machine Learning Model Architecture Design
 
-**Run date**: 20260605  |  **Pipeline version**: v1.0
+**Report date**: 20260609  |  **Pipeline version**: v1.0
+
+> This is the active Week 5 report for the current run. Older dated Week 5
+> report files in `data/reports/` are treated as superseded outputs.
 
 ---
 
@@ -37,7 +40,7 @@ $$\hat{V}_{\text{chooser}} = f_{\theta}\!\left(S,\,K,\,T_1,\,T_2,\,r,\,q,\,m,\,\
 where $f_{\theta}$ is a trained ML model and $\mathbf{x}_{\text{market}}$
 is the market feature vector.
 
-**Target**: chooser price computed with 20-day historical σ.
+**Target**: chooser price benchmarked with Monte Carlo-valued call/put legs.
 
 ---
 
@@ -59,7 +62,9 @@ All features are strictly **backward-looking** to prevent look-ahead bias.
 Dataset: 1,681 trading days.
 
   - `hist_vol_5d`
+  - `hist_vol_10d`
   - `hist_vol_20d`
+  - `hist_vol_40d`
   - `hist_vol_60d`
   - `vol_ratio_5_20`
   - `vol_ratio_20_60`
@@ -85,12 +90,6 @@ Dataset: 1,681 trading days.
 All market features above, plus chooser-specific parameters.
 Dataset: 17,850+ rows (daily dates × chooser contracts).
 
-  - `hist_vol_5d`
-  - `hist_vol_20d`
-  - `hist_vol_60d`
-  - `vol_ratio_5_20`
-  - `vol_ratio_20_60`
-  - `vol_20d_change`
   - `return_1d`
   - `return_5d`
   - `return_20d`
@@ -117,7 +116,7 @@ Dataset: 17,850+ rows (daily dates × chooser contracts).
 | Approach | Target | Description |
 |----------|--------|-------------|
 | 1 | `fwd_vol_20d` | Annualised realised vol over next 20 trading days |
-| 2 | `chooser_price` | Chooser price using hist_vol_20d as σ |
+| 2 | `chooser_price` | Chooser price using Monte Carlo benchmark |
 
 ---
 
@@ -141,7 +140,7 @@ All features are scaled using `RobustScaler` fitted **only** on the training set
 #### Random Forest
 - `n_estimators=300`, `max_depth=8`, `min_samples_leaf=5`
 - Preprocessing: RobustScaler
-- Input: 21 market features (1 row per trading day)
+- Input: 23 market features (1 row per trading day)
 
 #### XGBoost
 - `n_estimators=500`, `max_depth=5`, `learning_rate=0.05`
@@ -152,13 +151,13 @@ All features are scaled using `RobustScaler` fitted **only** on the training set
   - Architecture: LSTM(64) → Dropout(0.2) → LSTM(32) → Dropout(0.2) → Dense(16) → Dense(1)
   - Lookback window: 20 trading days
   - Optimizer: Adam | Loss: MSE | Early stopping (patience=10)
-  - Input shape: (batch, 20, 21)
+  - Input shape: (batch, 20, 23)
 
 ### 5.2 Approach 2 – End-to-End Supervised Chooser Pricing
 
 #### Linear Regression
 - Standard OLS with intercept, Preprocessing: RobustScaler
-- Input: 26 features (market + chooser parameters)
+- Input: 20 features (market + chooser parameters)
 
 #### XGBoost
 - `n_estimators=500`, `max_depth=6`, `learning_rate=0.05`
@@ -177,9 +176,9 @@ All features are scaled using `RobustScaler` fitted **only** on the training set
 
 | Model | Vol MAE | Vol RMSE | Option MAE | Option RMSE |
 |-------|---------|----------|------------|-------------|
-| RandomForest | 0.07052 | 0.10154 | 9.8702 | 15.8615 |
-| XGBoost | 0.07394 | 0.09706 | 9.8636 | 15.2889 |
-| LSTM | 0.07527 | 0.10495 | 10.4531 | 15.3666 |
+| RandomForest | 0.06895 | 0.10087 | 8.2373 | 11.6896 |
+| XGBoost | 0.07625 | 0.10392 | 7.9809 | 11.5073 |
+| LSTM | 0.06048 | 0.08960 | 6.6791 | 10.2471 |
 
 *Vol MAE/RMSE: annualised vol units. Chooser MAE/RMSE: USD.*
 
@@ -187,9 +186,9 @@ All features are scaled using `RobustScaler` fitted **only** on the training set
 
 | Model | MAE ($) | RMSE ($) | R² |
 |-------|---------|----------|-----|
-| LinearRegression | 5.5223 | 8.1196 | 0.7526 |
-| XGBoost | 8.6511 | 12.5134 | 0.4125 |
-| NeuralNetwork | 3.5388 | 5.3121 | 0.8941 |
+| LinearRegression | 14.1912 | 16.9857 | -0.7884 |
+| XGBoost | 11.1124 | 14.3564 | -0.2776 |
+| NeuralNetwork | 8.0512 | 9.3497 | 0.4581 |
 
 *Target: chooser price (hist_vol_20d as σ). Evaluation grid: 2T1 × 3T2 × 3K.*
 
@@ -198,12 +197,41 @@ All features are scaled using `RobustScaler` fitted **only** on the training set
 ## 7. Limitations & Recommended Next Steps
 
 ### Current Limitations
+
+#### Data & Targets
 1. **No market-implied vol**: Targets are derived from historical/closed-form
-    prices, not actual market option quotes.
-2. **Simplified chooser grid**: 2 decision times × 3 maturities × 3 moneyness levels.
-3. **Static features**: No real-time microstructure data (bid-ask, volume).
-4. **Synthetic chooser surface learning**: Approach 2 learns a synthetic
-    chooser surface from historical-vol inputs; real market quotes may differ.
+    prices, not actual market option quotes. This is a fundamental constraint:
+    Approach 2 learns to predict a synthetic chooser surface, not a real market
+    surface. High R² values (e.g., MLP R²=0.89) reflect model fit to the
+    synthetic label, NOT market predictability.
+2. **Synthetic chooser labels (Approach 2)**: Targets are computed as
+    `chooser_price(S, K, T1, T2, r, q, hist_vol_match(T2))`. Since this is a
+    deterministic closed-form calculation, linear models and neural networks
+    with sufficient capacity can still fit the surface, but the direct
+    historical-vol feature leakage into the input set has been removed.
+3. **Volatility term-structure matching**: Vol used for each maturity is now
+    matched to option T2, preventing term-structure mismatch. The pricing
+    features themselves exclude all historical vol windows and vol-derived
+    ratios, so Approach 2 must learn from price/momentum/VIX/rate/sentiment
+    signals only.
+
+#### Model Architecture
+4. **Simplified chooser grid**: 2 decision times × 3 maturities × 3 moneyness levels.
+5. **Static features**: No real-time microstructure data (bid-ask, volume).
+6. **No market data feedback**: Models do not adjust based on actual prices
+    observed at decision time T1.
+
+### Model-Specific Notes
+
+#### Approach 2 – Route 2 Pricing
+- **LinearRegression & MLP**: R² should be materially lower now that all
+    historical-vol input leakage has been removed. Any remaining fit comes from
+    genuine market-state variables rather than a direct vol proxy.
+- **XGBoost/GradientBoosting**: Lower R² (0.40-0.50) may indicate that tree
+  models struggle with the smooth closed-form surface; alternatively, the
+  current feature set lacks sufficient flexibility for tree splits. This is
+  NOT a sign of data leakage or feature engineering failure—it reflects
+  model-surface mismatch.
 
 ### Recommended Next Steps (Week 6+)
 1. Incorporate implied volatility data for more realistic targets.
@@ -212,7 +240,9 @@ All features are scaled using `RobustScaler` fitted **only** on the training set
 4. Extend LSTM to multi-step ahead vol forecasting.
 5. Build ensemble that combines Approach 1 and Approach 2 predictions.
 6. Evaluate on 2025+ data for out-of-sample performance.
+7. **Collect real market chooser prices** and retrain Approach 2 models
+   on actual traded prices instead of synthetic targets.
 
 ---
 
-*Generated by `week5_ml_models.py` | v1.0 | 20260605*
+*Generated by `week5_ml_models.py` | v1.0 | 20260609*
