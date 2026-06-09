@@ -178,7 +178,7 @@ All features are scaled using `RobustScaler` fitted **only** on the training set
 |-------|---------|----------|------------|-------------|
 | RandomForest | 0.06895 | 0.10087 | 8.2373 | 11.6896 |
 | XGBoost | 0.07625 | 0.10392 | 7.9809 | 11.5073 |
-| LSTM | 0.06048 | 0.08960 | 6.6791 | 10.2471 |
+| LSTM | 0.05985 | 0.08653 | 7.8128 | 12.2689 |
 
 *Vol MAE/RMSE: annualised vol units. Chooser MAE/RMSE: USD.*
 

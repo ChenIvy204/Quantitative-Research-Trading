@@ -892,67 +892,54 @@ def evaluate_approach2_stratified(
     opt_test: pd.DataFrame,
     pricing_cols: list[str],
 ) -> pd.DataFrame:
-    """Evaluate Approach 2 with stratification to diagnose model failures.
-    
-    Stratifies by:
-    - moneyness: OTM (<0.95), ATM (0.95-1.05), ITM (>1.05)
-    - T1 (decision time): short (0.25), medium (0.5)
-    - T2 (maturity): short (<=0.5y), medium (0.5-1.0y), long (>1.0y)
-    
-    Returns: DataFrame with cols [model, moneyness, T1, T2, count, mae, rmse, r2]
-    """
-    X_test = opt_test[pricing_cols].values
-    y_test = opt_test["chooser_price"].values
-    
+    """Evaluate Approach 2 with stratification to diagnose model failures."""
     results = []
     
+    # 为避免索引不唯一问题，重置索引为默认整数索引（并保留原始索引为 'orig_date' 列）
+    opt_test_reset = opt_test.reset_index().rename(columns={"index": "orig_date"})
+    # 同时保持 y_test 顺序与重置后的行顺序一致
+    y_test = opt_test_reset["chooser_price"].values
+    
+    # 预先计算每个模型的预测值（顺序与 opt_test_reset 一致）
+    preds_dict = {}
     for name, md in models.items():
-        # Get predictions (same logic as evaluate_approach2)
+        X_test = opt_test_reset[pricing_cols].values
         if "model" in md and md.get("is_tree"):
             y_pred = np.maximum(md["model"].predict(X_test), 0.0)
         elif "pipeline" in md:
             y_pred = np.maximum(md["pipeline"].predict(X_test), 0.0)
         else:
             continue
-        
-        # Stratify by moneyness
-        opt_test_copy = opt_test.copy()
-        opt_test_copy["pred_error"] = np.abs(y_test - y_pred)
-        opt_test_copy["moneyness_bucket"] = pd.cut(
-            opt_test_copy["moneyness"],
-            bins=[0, 0.95, 1.05, 2.0],
-            labels=["OTM", "ATM", "ITM"],
-        )
-        
-        # T1 (no stratification needed, already has distinct values)
-        # T2 stratification
-        opt_test_copy["T2_bucket"] = pd.cut(
-            opt_test_copy["T2"],
-            bins=[0, 0.5, 1.0, 2.0],
-            labels=["short", "medium", "long"],
-        )
-        
-        # Group by all three dimensions
-        for (m_bucket, t1_val, t2_bucket), group in opt_test_copy.groupby(
+        preds_dict[name] = y_pred
+
+    # 创建分组列（在重置后的 DataFrame 上）
+    opt_test_reset["moneyness_bucket"] = pd.cut(
+        opt_test_reset["moneyness"],
+        bins=[0, 0.95, 1.05, 2.0],
+        labels=["OTM", "ATM", "ITM"],
+    )
+    opt_test_reset["T2_bucket"] = pd.cut(
+        opt_test_reset["T2"],
+        bins=[0, 0.5, 1.0, 2.0],
+        labels=["short", "medium", "long"],
+    )
+    
+    # 遍历每个模型和每个分组
+    for name, y_pred in preds_dict.items():
+        for (m_bucket, t1_val, t2_bucket), group in opt_test_reset.groupby(
             ["moneyness_bucket", "T1", "T2_bucket"], observed=True
         ):
             if len(group) == 0:
                 continue
-            
-            y_true_g = group.index.map(lambda i: y_test[opt_test.index.get_loc(i)])
-            y_pred_g = group.index.map(lambda i: y_pred[opt_test.index.get_loc(i)])
-            
-            # More direct calculation
-            idx_in_test = [i for i, idx in enumerate(opt_test.index) if idx in group.index]
-            if not idx_in_test:
-                continue
-            y_true_g = y_test[idx_in_test]
-            y_pred_g = y_pred[idx_in_test]
+            # 获取分组在 DataFrame 中的行位置（整数位置）
+            idx = group.index  # 这是重置后的整数索引，唯一且连续
+            y_true_g = y_test[idx]
+            y_pred_g = y_pred[idx]
             
             mae_g = mean_absolute_error(y_true_g, y_pred_g)
-            rmse_g = float(np.sqrt(mean_squared_error(y_true_g, y_pred_g)))
-            ss_res_g = float(np.sum((y_true_g - y_pred_g) ** 2))
-            ss_tot_g = float(np.sum((y_true_g - y_true_g.mean()) ** 2))
+            rmse_g = np.sqrt(mean_squared_error(y_true_g, y_pred_g))
+            ss_res_g = np.sum((y_true_g - y_pred_g) ** 2)
+            ss_tot_g = np.sum((y_true_g - y_true_g.mean()) ** 2)
             r2_g = 1.0 - ss_res_g / ss_tot_g if ss_tot_g > 0 else 0.0
             
             results.append({
