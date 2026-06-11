@@ -88,7 +88,8 @@ except ImportError:
 try:
     import shap  # type: ignore[import-not-found]
     HAS_SHAP = True
-except ImportError:
+except Exception:
+    shap = None  # type: ignore[assignment]
     HAS_SHAP = False
 
 ENABLE_MLP = os.environ.get("WEEK6_DISABLE_MLP") != "1"
