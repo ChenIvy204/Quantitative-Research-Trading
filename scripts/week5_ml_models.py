@@ -1,5 +1,5 @@
 """
-Week 5 – Machine Learning Model Design & Implementation
+Week 6 – Machine Learning Model Design & Implementation
 =======================================================
 
 Two-Approach Architecture
@@ -21,22 +21,27 @@ Feature Preparation
 
 Outputs
 -------
-    data/processed/week5_feature_dataset_v1.0.csv
-    data/processed/week5_vol_results_v1.0.csv
-    data/processed/week5_pricing_results_v1.0.csv
-    data/processed/week5_pricing_stratified_v1.0.csv
-    data/processed/week5_model_comparison_v1.0.csv
-    data/reports/week5_ml_architecture_v1.0.md
-    data/reports/week5_ml_architecture_v1.0.pdf
-  data/reports/week5_feature_importance.png
-  data/reports/week5_vol_prediction_comparison.png
-  data/reports/week5_pricing_comparison.png
-  data/reports/week5_model_performance.png
+        data/processed/week6_feature_dataset_v1.0.csv
+        data/processed/week6_vol_results_v1.0.csv
+        data/processed/week6_pricing_results_v1.0.csv
+        data/processed/week6_pricing_stratified_v1.0.csv
+        data/processed/week6_model_comparison_v1.0.csv
+        data/models/week6_*.joblib
+        data/models/week6_*.keras
+        data/reports/week6_ml_architecture_v1.0.md
+        data/reports/week6_ml_architecture_v1.0.pdf
+    data/reports/week6_feature_importance.png
+    data/reports/week6_shap_app1_*.png
+    data/reports/week6_shap_app2_*.png
+    data/reports/week6_vol_prediction_comparison.png
+    data/reports/week6_pricing_comparison.png
+    data/reports/week6_model_performance.png
 """
 
 from __future__ import annotations
 
 import logging
+import subprocess
 import warnings
 import zlib
 from datetime import datetime
@@ -44,12 +49,14 @@ from functools import lru_cache
 from math import erf, exp, log, sqrt
 from pathlib import Path
 
+import joblib
 import numpy as np
 import pandas as pd
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
+import os
 from reportlab.lib import colors
 from reportlab.lib.enums import TA_LEFT
 from reportlab.lib.pagesizes import A4
@@ -57,24 +64,34 @@ from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.lib.units import inch
 from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
+from sklearn.base import clone
 from sklearn.ensemble import RandomForestRegressor, GradientBoostingRegressor
 from sklearn.linear_model import LinearRegression
 from sklearn.neural_network import MLPRegressor
 from sklearn.preprocessing import RobustScaler
 from sklearn.metrics import mean_absolute_error, mean_squared_error
 from sklearn.pipeline import Pipeline
+from sklearn.model_selection import RandomizedSearchCV, TimeSeriesSplit
 
 try:
     import xgboost as xgb
-    HAS_XGB = True
+    HAS_XGB = os.environ.get("WEEK6_DISABLE_XGB") != "1"
 except ImportError:
     HAS_XGB = False
 
 try:
     import tensorflow as tf  # type: ignore[import-not-found]
-    HAS_TF = True
+    HAS_TF = os.environ.get("WEEK6_DISABLE_LSTM") != "1"
 except ImportError:
     HAS_TF = False
+
+try:
+    import shap  # type: ignore[import-not-found]
+    HAS_SHAP = True
+except ImportError:
+    HAS_SHAP = False
+
+ENABLE_MLP = os.environ.get("WEEK6_DISABLE_MLP") != "1"
 
 warnings.filterwarnings("ignore")
 
@@ -85,12 +102,14 @@ PROCESSED_DIR = ROOT / "data" / "processed"
 REPORTS_DIR   = ROOT / "data" / "reports"
 PIPELINE_VER  = "v1.0"
 RUN_DATE      = datetime.now().strftime("%Y%m%d")
-REPORT_STEM   = f"week5_ml_architecture_{PIPELINE_VER}"
-FEATURE_STEM  = f"week5_feature_dataset_{PIPELINE_VER}"
-VOL_STEM      = f"week5_vol_results_{PIPELINE_VER}"
-PRICING_STEM  = f"week5_pricing_results_{PIPELINE_VER}"
-PRICING_STRAT_STEM = f"week5_pricing_stratified_{PIPELINE_VER}"
-COMP_STEM     = f"week5_model_comparison_{PIPELINE_VER}"
+OUTPUT_WEEK   = "week6"
+REPORT_STEM   = f"{OUTPUT_WEEK}_ml_architecture_{PIPELINE_VER}"
+FEATURE_STEM  = f"{OUTPUT_WEEK}_feature_dataset_{PIPELINE_VER}"
+VOL_STEM      = f"{OUTPUT_WEEK}_vol_results_{PIPELINE_VER}"
+PRICING_STEM  = f"{OUTPUT_WEEK}_pricing_results_{PIPELINE_VER}"
+PRICING_STRAT_STEM = f"{OUTPUT_WEEK}_pricing_stratified_{PIPELINE_VER}"
+COMP_STEM     = f"{OUTPUT_WEEK}_model_comparison_{PIPELINE_VER}"
+MODELS_DIR    = ROOT / "data" / "models"
 
 # ── Config ────────────────────────────────────────────────────────────────────
 ANNUALISE             = 252        # trading days / year
@@ -109,6 +128,12 @@ RANDOM_STATE    = 42
 CHOOSER_MC_PATHS = 2_000
 VIX_LOW         = 20.0
 VIX_HIGH        = 30.0
+SEARCH_CV_SPLITS = 5
+SEARCH_CV_SPLITS = 3
+SEARCH_N_ITER_LR = 2
+SEARCH_N_ITER_RF = 8
+SEARCH_N_ITER_GBM = 2
+SEARCH_N_ITER_MLP = 2
 
 logger = logging.getLogger("week5_ml_models")
 logging.basicConfig(level=logging.INFO, format="%(levelname)s | %(message)s")
@@ -390,10 +415,11 @@ def get_vol_feature_columns() -> list[str]:
 def get_pricing_feature_columns() -> list[str]:
     """Return the ordered list of input feature names for Approach 2.
 
-    Historical volatility features are intentionally excluded to avoid leakage,
-    because the chooser-price target is already generated from matched vol.
+    Include only volatility proxy features. Raw historical volatility windows
+    are deliberately excluded to avoid function leakage in the end-to-end task.
     """
     return [
+        "vol_ratio_5_20", "vol_ratio_20_60", "vol_20d_change",
         "return_1d", "return_5d", "return_20d",
         "price_to_ma_20d", "price_to_ma_60d",
         "vix", "vix_change_5d", "vix_ma_ratio",
@@ -449,8 +475,9 @@ def _match_vol_to_maturity(T_years: float) -> str:
 def build_option_dataset(feat_df: pd.DataFrame) -> pd.DataFrame:
     """
     Approach 2 dataset: one row per (trading day × chooser contract).
-    Features: market features + chooser parameters (S, K, moneyness, T1, T2).
-    Target:   chooser price computed with vol matched to maturity T2 (not fixed 20d).
+    Features: market features, volatility proxies, and chooser parameters
+              (S, K, moneyness, T1, T2).
+    Target:   Monte Carlo chooser price computed with vol matched to maturity T2.
     
     CRITICAL FIX: Previous version used fixed hist_vol_20d for all maturities,
     causing term-structure mismatch. Now selects vol window based on T2.
@@ -486,6 +513,7 @@ def build_option_dataset(feat_df: pd.DataFrame) -> pd.DataFrame:
                     
                 for m in MONEYNESS:
                     K = S * m
+                    # Target label: Monte Carlo benchmark, not the closed-form chooser.
                     price = chooser_price_mc_scalar(S, K, T1, T2, r, q, sigma)
                     rec: dict = {
                         "date": date,
@@ -498,11 +526,15 @@ def build_option_dataset(feat_df: pd.DataFrame) -> pd.DataFrame:
                         "vol_match": vol_col,  # Track which vol window was used
                         "vix_regime": row.get("vix_regime", "unknown"),
                     }
-                    # Keep historical-vol windows as auxiliary columns for
-                    # Approach 1 evaluation, but do not expose them to
-                    # Approach 2 feature columns.
+                    # Keep raw historical volatility windows as auxiliary columns
+                    # for Approach 1 evaluation only; they are not part of the
+                    # Approach 2 feature set.
                     for vol_name in vol_cols:
                         rec[vol_name] = float(row[vol_name])
+                    for extra_vol_name in ["vol_ratio_5_20", "vol_ratio_20_60", "vol_20d_change"]:
+                        if extra_vol_name in row.index:
+                            extra_value = row[extra_vol_name]
+                            rec[extra_vol_name] = float(extra_value) if pd.notna(extra_value) else np.nan
                     for col in feature_cols:
                         rec[col] = float(row[col])
                     rows.append(rec)
@@ -540,6 +572,72 @@ def time_series_split(
     )
 
 
+def _make_time_series_cv(n_samples: int, max_splits: int = SEARCH_CV_SPLITS) -> TimeSeriesSplit:
+    """Create a safe TimeSeriesSplit for random-search cross-validation."""
+    n_splits = min(max_splits, max(2, n_samples // 50))
+    return TimeSeriesSplit(n_splits=n_splits)
+
+
+def _run_random_search(
+    estimator,
+    param_distributions: dict,
+    X_train: np.ndarray,
+    y_train: np.ndarray,
+    n_iter: int,
+    scoring: str = "neg_mean_absolute_error",
+) -> RandomizedSearchCV:
+    """Run random search with time-series cross-validation."""
+    search = RandomizedSearchCV(
+        estimator=estimator,
+        param_distributions=param_distributions,
+        n_iter=n_iter,
+        scoring=scoring,
+        cv=_make_time_series_cv(len(X_train)),
+        random_state=RANDOM_STATE,
+        n_jobs=1,
+        refit=True,
+        verbose=0,
+    )
+    search.fit(X_train, y_train)
+    return search
+
+
+def _refit_best_estimator(
+    search: RandomizedSearchCV,
+    X_full: np.ndarray,
+    y_full: np.ndarray,
+):
+    """Clone the best estimator and refit it on the full train+validation split."""
+    model = clone(search.best_estimator_)
+    model.fit(X_full, y_full)
+    return model
+
+
+def _format_param_summary(params: dict[str, object], keys: list[str]) -> str:
+    """Render a compact best-parameter summary for markdown tables."""
+    parts: list[str] = []
+    for key in keys:
+        if key not in params:
+            continue
+        value = params[key]
+        if key == "hidden_layer_sizes" and isinstance(value, tuple):
+            value = "x".join(str(v) for v in value)
+        parts.append(f"{key}={value}")
+    return ", ".join(parts) if parts else "-"
+
+
+def _latest_week4_baseline() -> pd.Series | None:
+    """Load the most recent Week 4 BSM error summary, if it exists."""
+    candidates = sorted(PROCESSED_DIR.glob("week4_bsm_error_metrics_v1.0_*.csv"))
+    if not candidates:
+        return None
+    summary = pd.read_csv(candidates[-1])
+    overall = summary[summary["group"] == "overall"]
+    if overall.empty:
+        return None
+    return overall.iloc[0]
+
+
 # =============================================================================
 # 6. Approach 1 – ML Volatility Prediction
 # =============================================================================
@@ -551,42 +649,93 @@ def train_vol_models(
     y_val: np.ndarray,
     feature_names: list[str],
 ) -> dict:
-    """Train RF, XGBoost (or GBDT), and optionally LSTM for vol prediction."""
+    """Tune RF, XGBoost (or GBDT), and optionally LSTM for vol prediction."""
     models: dict = {}
+    X_full = np.vstack([X_train, X_val])
+    y_full = np.concatenate([y_train, y_val])
 
     # ── Random Forest ──────────────────────────────────────────────────────
-    logger.info("  [Approach 1] Training RandomForest...")
-    rf = RandomForestRegressor(
-        n_estimators=300,
-        max_depth=8,
-        min_samples_leaf=5,
-        random_state=RANDOM_STATE,
-        n_jobs=-1,
+    logger.info("  [Approach 1] RandomForest random search...")
+    rf_search = _run_random_search(
+        RandomForestRegressor(random_state=RANDOM_STATE, n_jobs=-1),
+        {
+            "n_estimators": [200, 300, 400, 600, 800],
+            "max_depth": [4, 6, 8, 10, None],
+            "min_samples_leaf": [1, 2, 4, 6, 8],
+            "min_samples_split": [2, 4, 6, 8, 10],
+            "max_features": ["sqrt", 0.5, 0.7, 1.0],
+        },
+        X_train,
+        y_train,
+        SEARCH_N_ITER_RF,
     )
-    rf.fit(X_train, y_train)
-    rf_val_mae = mean_absolute_error(y_val, rf.predict(X_val))
-    logger.info("    RF   val MAE=%.6f", rf_val_mae)
-    models["RandomForest"] = {"model": rf, "val_mae": rf_val_mae, "is_tree": True}
+    rf_val_mae = mean_absolute_error(y_val, rf_search.predict(X_val))
+    rf_model = _refit_best_estimator(rf_search, X_full, y_full)
+    logger.info("    RF   val MAE=%.6f | best=%s", rf_val_mae, _format_param_summary(rf_search.best_params_, ["n_estimators", "max_depth", "min_samples_leaf", "min_samples_split", "max_features"]))
+    models["RandomForest"] = {
+        "model": rf_model,
+        "val_mae": rf_val_mae,
+        "cv_mae": float(-rf_search.best_score_),
+        "best_params": rf_search.best_params_,
+        "search": rf_search,
+        "is_tree": True,
+    }
 
     # ── XGBoost (or sklearn GBDT fallback) ────────────────────────────────
     if HAS_XGB:
-        logger.info("  [Approach 1] Training XGBoost...")
-        gbm = xgb.XGBRegressor(
-            n_estimators=500, max_depth=5, learning_rate=0.05,
-            subsample=0.8, colsample_bytree=0.8,
-            random_state=RANDOM_STATE, verbosity=0,
+        logger.info("  [Approach 1] XGBoost random search...")
+        gbm_search = _run_random_search(
+            xgb.XGBRegressor(random_state=RANDOM_STATE, verbosity=0),
+            {
+                "n_estimators": [200, 400, 600, 800, 1000],
+                "max_depth": [2, 3, 4, 5, 6, 8],
+                "learning_rate": [0.01, 0.03, 0.05, 0.08, 0.1],
+                "subsample": [0.6, 0.7, 0.8, 0.9, 1.0],
+                "colsample_bytree": [0.6, 0.7, 0.8, 0.9, 1.0],
+                "min_child_weight": [1, 3, 5, 7],
+                "reg_alpha": [0.0, 0.01, 0.1, 1.0],
+                "reg_lambda": [0.5, 1.0, 2.0, 5.0],
+            },
+            X_train,
+            y_train,
+            SEARCH_N_ITER_GBM,
         )
     else:
-        logger.info("  [Approach 1] Training GradientBoosting (XGBoost not found)...")
-        gbm = GradientBoostingRegressor(
-            n_estimators=300, max_depth=5, learning_rate=0.05,
-            subsample=0.8, random_state=RANDOM_STATE,
+        logger.info("  [Approach 1] GradientBoosting random search (XGBoost not found)...")
+        gbm_search = _run_random_search(
+            GradientBoostingRegressor(random_state=RANDOM_STATE),
+            {
+                "n_estimators": [150, 250, 350, 500, 700],
+                "max_depth": [2, 3, 4, 5, 6],
+                "learning_rate": [0.01, 0.03, 0.05, 0.08, 0.1],
+                "subsample": [0.6, 0.7, 0.8, 0.9, 1.0],
+                "min_samples_split": [2, 4, 6, 8, 10],
+                "min_samples_leaf": [1, 2, 4, 6],
+            },
+            X_train,
+            y_train,
+            SEARCH_N_ITER_GBM,
         )
-    gbm.fit(X_train, y_train)
     gbm_name    = "XGBoost" if HAS_XGB else "GradientBoosting"
-    gbm_val_mae = mean_absolute_error(y_val, gbm.predict(X_val))
-    logger.info("    %-16s val MAE=%.6f", gbm_name, gbm_val_mae)
-    models[gbm_name] = {"model": gbm, "val_mae": gbm_val_mae, "is_tree": True}
+    gbm_val_mae = mean_absolute_error(y_val, gbm_search.predict(X_val))
+    gbm_model = _refit_best_estimator(gbm_search, X_full, y_full)
+    logger.info(
+        "    %-16s val MAE=%.6f | best=%s",
+        gbm_name,
+        gbm_val_mae,
+        _format_param_summary(
+            gbm_search.best_params_,
+            ["n_estimators", "max_depth", "learning_rate", "subsample", "colsample_bytree", "min_child_weight"],
+        ),
+    )
+    models[gbm_name] = {
+        "model": gbm_model,
+        "val_mae": gbm_val_mae,
+        "cv_mae": float(-gbm_search.best_score_),
+        "best_params": gbm_search.best_params_,
+        "search": gbm_search,
+        "is_tree": True,
+    }
 
     # ── LSTM (TensorFlow / Keras) ─────────────────────────────────────────
     if HAS_TF:
@@ -779,71 +928,151 @@ def train_pricing_models(
     X_val: np.ndarray,
     y_val: np.ndarray,
 ) -> dict:
-    """Train LinearRegression, XGBoost/GBDT, and MLP for direct chooser pricing.
+    """Tune LinearRegression, XGBoost/GBDT, and MLP for direct chooser pricing.
     
-    FIX: Tree models (XGB/GBDT) do NOT need scaling—removed RobustScaler wrapper.
-    This prevents unnecessary computation and avoids interfering with split logic.
-    MLP still uses scaling due to ReLU activation sensitivity to input magnitude.
+    Tree models are tuned with random search and then refit on train+validation.
+    Linear regression remains a fixed baseline for reference.
     """
     models: dict = {}
+    X_full = np.vstack([X_train, X_val])
+    y_full = np.concatenate([y_train, y_val])
 
     # ── Linear Regression ─────────────────────────────────────────────────
-    logger.info("  [Approach 2] Training LinearRegression...")
-    lr = Pipeline([
+    logger.info("  [Approach 2] LinearRegression random search...")
+    lr_search = _run_random_search(
+        Pipeline([
         ("scaler", RobustScaler()),
         ("model",  LinearRegression()),
-    ])
-    lr.fit(X_train, y_train)
-    lr_val_mae = mean_absolute_error(y_val, lr.predict(X_val))
-    logger.info("    LR  val MAE=%.4f", lr_val_mae)
-    models["LinearRegression"] = {"pipeline": lr, "val_mae": lr_val_mae}
+    ]),
+        {
+            "model__fit_intercept": [True, False],
+            "model__positive": [False, True],
+        },
+        X_train,
+        y_train,
+        SEARCH_N_ITER_LR,
+    )
+    lr_val_mae = mean_absolute_error(y_val, lr_search.predict(X_val))
+    lr_model = _refit_best_estimator(lr_search, X_full, y_full)
+    logger.info(
+        "    LR  val MAE=%.4f | best=%s",
+        lr_val_mae,
+        _format_param_summary(lr_search.best_params_, ["model__fit_intercept", "model__positive"]),
+    )
+    models["LinearRegression"] = {
+        "pipeline": lr_model,
+        "val_mae": lr_val_mae,
+        "cv_mae": float(-lr_search.best_score_),
+        "best_params": lr_search.best_params_,
+        "search": lr_search,
+        "is_tree": False,
+    }
 
     # ── XGBoost / Gradient Boosting (NO scaling needed for tree models) ────
     if HAS_XGB:
-        logger.info("  [Approach 2] Training XGBoost (unscaled)...")
-        gbm = xgb.XGBRegressor(
-            n_estimators=800, max_depth=5, learning_rate=0.03,
-            subsample=0.7, colsample_bytree=0.7,
-            early_stopping_rounds=50,
-            random_state=RANDOM_STATE, verbosity=0,
+        logger.info("  [Approach 2] XGBoost random search (unscaled)...")
+        gbm_search = _run_random_search(
+            xgb.XGBRegressor(random_state=RANDOM_STATE, verbosity=0),
+            {
+                "n_estimators": [300, 500, 700, 900, 1200],
+                "max_depth": [2, 3, 4, 5, 6, 8],
+                "learning_rate": [0.01, 0.02, 0.03, 0.05, 0.08],
+                "subsample": [0.6, 0.7, 0.8, 0.9, 1.0],
+                "colsample_bytree": [0.6, 0.7, 0.8, 0.9, 1.0],
+                "min_child_weight": [1, 3, 5, 7],
+                "reg_alpha": [0.0, 0.01, 0.1, 1.0],
+                "reg_lambda": [0.5, 1.0, 2.0, 5.0],
+            },
+            X_train,
+            y_train,
+            SEARCH_N_ITER_GBM,
         )
-        gbm.fit(X_train, y_train, eval_set=[(X_val, y_val)], verbose=False)
-        gbm_val_mae = mean_absolute_error(y_val, gbm.predict(X_val))
+        gbm_model = _refit_best_estimator(gbm_search, X_full, y_full)
+        gbm_val_mae = mean_absolute_error(y_val, gbm_search.predict(X_val))
         gbm_name = "XGBoost"
     else:
-        logger.info("  [Approach 2] Training GradientBoosting (unscaled)...")
-        gbm = GradientBoostingRegressor(
-            n_estimators=500, max_depth=4, learning_rate=0.03,
-            subsample=0.7, validation_fraction=0.1,
-            random_state=RANDOM_STATE,
+        logger.info("  [Approach 2] GradientBoosting random search (unscaled)...")
+        gbm_search = _run_random_search(
+            GradientBoostingRegressor(random_state=RANDOM_STATE),
+            {
+                "n_estimators": [200, 300, 500, 700, 900],
+                "max_depth": [2, 3, 4, 5, 6],
+                "learning_rate": [0.01, 0.02, 0.03, 0.05, 0.08],
+                "subsample": [0.6, 0.7, 0.8, 0.9, 1.0],
+                "min_samples_split": [2, 4, 6, 8, 10],
+                "min_samples_leaf": [1, 2, 4, 6],
+            },
+            X_train,
+            y_train,
+            SEARCH_N_ITER_GBM,
         )
-        gbm.fit(X_train, y_train)
-        gbm_val_mae = mean_absolute_error(y_val, gbm.predict(X_val))
+        gbm_model = _refit_best_estimator(gbm_search, X_full, y_full)
+        gbm_val_mae = mean_absolute_error(y_val, gbm_search.predict(X_val))
         gbm_name = "GradientBoosting"
     
-    logger.info("    %-16s val MAE=%.4f", gbm_name, gbm_val_mae)
-    models[gbm_name] = {"model": gbm, "val_mae": gbm_val_mae, "is_tree": True}
+    logger.info(
+        "    %-16s val MAE=%.4f | best=%s",
+        gbm_name,
+        gbm_val_mae,
+        _format_param_summary(
+            gbm_search.best_params_,
+            ["n_estimators", "max_depth", "learning_rate", "subsample", "colsample_bytree", "min_child_weight"],
+        ),
+    )
+    models[gbm_name] = {
+        "model": gbm_model,
+        "val_mae": gbm_val_mae,
+        "cv_mae": float(-gbm_search.best_score_),
+        "best_params": gbm_search.best_params_,
+        "search": gbm_search,
+        "is_tree": True,
+    }
 
-    # ── Neural Network (MLP) – scaled ────────────────────────────────────
-    logger.info("  [Approach 2] Training MLP (256-128-64-32)...")
-    mlp = Pipeline([
-        ("scaler", RobustScaler()),
-        ("model",  MLPRegressor(
-            hidden_layer_sizes=(256, 128, 64, 32),
-            activation="relu",
-            max_iter=1000,
-            learning_rate_init=5e-4,
-            early_stopping=True,
-            validation_fraction=0.1,
-            n_iter_no_change=50,
-            random_state=RANDOM_STATE,
-            verbose=False,
-        )),
-    ])
-    mlp.fit(X_train, y_train)
-    mlp_val_mae = mean_absolute_error(y_val, mlp.predict(X_val))
-    logger.info("    MLP val MAE=%.4f", mlp_val_mae)
-    models["NeuralNetwork"] = {"pipeline": mlp, "val_mae": mlp_val_mae, "is_tree": False}
+    if ENABLE_MLP:
+        logger.info("  [Approach 2] MLP random search (scaled)...")
+        mlp_search = _run_random_search(
+            Pipeline([
+            ("scaler", RobustScaler()),
+            ("model",  MLPRegressor(
+                activation="relu",
+                max_iter=1000,
+                early_stopping=True,
+                validation_fraction=0.1,
+                n_iter_no_change=30,
+                random_state=RANDOM_STATE,
+                verbose=False,
+            )),
+        ]),
+            {
+                "model__hidden_layer_sizes": [(64,), (128,), (128, 64), (256, 128, 64), (256, 128, 64, 32)],
+                "model__alpha": [1e-5, 1e-4, 1e-3, 1e-2],
+                "model__learning_rate_init": [1e-4, 3e-4, 5e-4, 1e-3],
+                "model__batch_size": [16, 32, 64],
+            },
+            X_train,
+            y_train,
+            SEARCH_N_ITER_MLP,
+        )
+        mlp_model = _refit_best_estimator(mlp_search, X_full, y_full)
+        mlp_val_mae = mean_absolute_error(y_val, mlp_search.predict(X_val))
+        logger.info(
+            "    MLP val MAE=%.4f | best=%s",
+            mlp_val_mae,
+            _format_param_summary(
+                mlp_search.best_params_,
+                ["model__hidden_layer_sizes", "model__alpha", "model__learning_rate_init", "model__batch_size"],
+            ),
+        )
+        models["NeuralNetwork"] = {
+            "pipeline": mlp_model,
+            "val_mae": mlp_val_mae,
+            "cv_mae": float(-mlp_search.best_score_),
+            "best_params": mlp_search.best_params_,
+            "search": mlp_search,
+            "is_tree": False,
+        }
+    else:
+        logger.info("  [Approach 2] Skipping MLP (WEEK6_ENABLE_MLP not set).")
 
     return models
 
@@ -885,6 +1114,45 @@ def evaluate_approach2(
         )
 
     return pd.DataFrame(rows)
+
+
+def evaluate_bsm_baseline(opt_test: pd.DataFrame) -> pd.DataFrame:
+    """Evaluate the closed-form chooser baseline on the same test contracts."""
+    preds: list[float] = []
+    y_true = opt_test["chooser_price"].values
+
+    for _, row in opt_test.iterrows():
+        vol_match = _match_vol_to_maturity(float(row["T2"]))
+        sigma = max(float(row[vol_match]), 1e-4)
+        preds.append(
+            chooser_price_scalar(
+                float(row["S"]),
+                float(row["K"]),
+                float(row["T1"]),
+                float(row["T2"]),
+                float(row["r"]),
+                float(row["q"]),
+                sigma,
+            )
+        )
+
+    y_pred = np.array(preds)
+    mae    = mean_absolute_error(y_true, y_pred)
+    rmse   = float(np.sqrt(mean_squared_error(y_true, y_pred)))
+    ss_res = float(np.sum((y_true - y_pred) ** 2))
+    ss_tot = float(np.sum((y_true - y_true.mean()) ** 2))
+    r2     = 1.0 - ss_res / ss_tot if ss_tot > 0 else 0.0
+
+    logger.info(
+        "  Approach 2 | %-16s | MAE=%.4f RMSE=%.4f R²=%.4f",
+        "BSM Baseline",
+        mae,
+        rmse,
+        r2,
+    )
+    return pd.DataFrame([
+        {"model": "BSM Baseline", "mae": mae, "rmse": rmse, "r2": r2}
+    ])
 
 
 def evaluate_approach2_stratified(
@@ -1088,7 +1356,7 @@ def plot_model_comparison(
     ax2.tick_params(axis="x", rotation=15)
     ax2.grid(axis="y", alpha=0.3)
 
-    fig.suptitle("Week 5 – ML Model Framework Summary", fontsize=13, fontweight="bold")
+    fig.suptitle("Week 6 – ML Model Framework Summary", fontsize=13, fontweight="bold")
     plt.savefig(out_path, dpi=150, bbox_inches="tight")
     plt.close()
     logger.info("Saved → %s", out_path.name)
@@ -1107,6 +1375,9 @@ def generate_architecture_doc(
     opt_train: pd.DataFrame,
     feature_cols: list[str],
     pricing_cols: list[str],
+    vol_models: dict,
+    pricing_models: dict,
+    week4_baseline: pd.Series | None,
 ) -> str:
     def fdate(d) -> str:
         return str(d.date()) if hasattr(d, "date") else str(d)
@@ -1137,13 +1408,34 @@ def generate_architecture_doc(
     feat_list    = "\n".join(f"  - `{f}`" for f in feature_cols)
     pricing_list = "\n".join(f"  - `{f}`" for f in pricing_cols)
 
-    gbm_label = "XGBoost" if HAS_XGB else "GradientBoosting"
+    def tuning_rows(models: dict, model_names: list[str]) -> str:
+        rows = []
+        for model_name in model_names:
+            md = models.get(model_name)
+            if not md:
+                continue
+            best_params = md.get("best_params", {})
+            if not isinstance(best_params, dict):
+                best_params = {}
+            rows.append(
+                f"| {model_name} | {md.get('cv_mae', float('nan')):.5f} | {md.get('val_mae', float('nan')):.5f} | "
+                f"{_format_param_summary(best_params, list(best_params.keys()))} |"
+            )
+        return "\n".join(rows) if rows else "| - | - | - | - |"
 
-    doc = f"""# Week 5 – Machine Learning Model Architecture Design
+    vol_tuning_rows = tuning_rows(vol_models, ["RandomForest", "XGBoost", "GradientBoosting", "LSTM"])
+    pricing_tuning_rows = tuning_rows(pricing_models, ["LinearRegression", "XGBoost", "GradientBoosting", "NeuralNetwork"])
+
+    week4_summary_text = (
+        f"Week 4 BSM baseline (European options): MAE={week4_baseline['MAE']:.6f}, RMSE={week4_baseline['RMSE']:.6f}, "
+        f"p-value={week4_baseline['p_val_ME']:.4f}"
+    ) if week4_baseline is not None else "Week 4 baseline summary not found in data/processed/"
+
+    doc = f"""# Week 6 – Machine Learning Model Architecture Design
 
 **Report date**: {RUN_DATE}  |  **Pipeline version**: {PIPELINE_VER}
 
-> This is the active Week 5 report for the current run. Older dated Week 5
+> This is the active Week 6 report for the current run. Older dated Week 6
 > report files in `data/reports/` are treated as superseded outputs.
 
 ---
@@ -1151,7 +1443,7 @@ def generate_architecture_doc(
 ## 1. Executive Summary
 
 This document describes the machine learning architecture designed and
-implemented in Week 5 of the Quantitative Research & Trading project.
+implemented in Week 6 of the Quantitative Research & Trading project.
 Two complementary approaches price chooser options on JPM stock:
 
 - **Approach 1 (ML + chooser closed form)**: ML models predict 20-day
@@ -1224,6 +1516,9 @@ Dataset: {len(opt_train):,}+ rows (daily dates × chooser contracts).
 
 Data is split **chronologically** (never randomly) to prevent look-ahead bias.
 All features are scaled using `RobustScaler` fitted **only** on the training set.
+For model selection, each tunable learner is optimized with `RandomizedSearchCV`
+and `TimeSeriesSplit`, then refit on the combined train+validation partition
+before the final test-set evaluation.
 
 | Split | Date Range | Fraction |
 |-------|-----------|----------|
@@ -1237,33 +1532,22 @@ All features are scaled using `RobustScaler` fitted **only** on the training set
 
 ### 5.1 Approach 1 – ML Volatility Prediction
 
-#### Random Forest
-- `n_estimators=300`, `max_depth=8`, `min_samples_leaf=5`
-- Preprocessing: RobustScaler
-- Input: {len(feature_cols)} market features (1 row per trading day)
-
-#### {gbm_label}
-- `n_estimators=500`, `max_depth=5`, `learning_rate=0.05`
-- `subsample=0.8`, `colsample_bytree=0.8`
-- Preprocessing: RobustScaler
+| Model | CV MAE | Val MAE | Best parameters |
+|-------|--------|---------|-----------------|
+{vol_tuning_rows}
 
 #### LSTM
 {lstm_arch}
 
 ### 5.2 Approach 2 – End-to-End Supervised Chooser Pricing
 
-#### Linear Regression
-- Standard OLS with intercept, Preprocessing: RobustScaler
-- Input: {len(pricing_cols)} features (market + chooser parameters)
+| Model | CV MAE | Val MAE | Best parameters |
+|-------|--------|---------|-----------------|
+{pricing_tuning_rows}
 
-#### {gbm_label}
-- `n_estimators=500`, `max_depth=6`, `learning_rate=0.05`
-- `subsample=0.8`, `colsample_bytree=0.8`
-
-#### Neural Network (MLP)
-- Architecture: Dense(128) → ReLU → Dense(64) → ReLU → Dense(32) → ReLU → Dense(1)
-- Optimizer: Adam (`lr=1e-3`), early stopping (`patience` via `validation_fraction=0.1`)
-- `max_iter=500`
+#### Baseline comparison
+- {week4_summary_text}
+- The closed-form chooser formula computed with maturity-matched historical volatility is used only as a comparison baseline, not as the training target.
 
 ---
 
@@ -1283,7 +1567,7 @@ All features are scaled using `RobustScaler` fitted **only** on the training set
 |-------|---------|----------|-----|
 {p_rows}
 
-*Target: chooser price (hist_vol_20d as σ). Evaluation grid: 2T1 × 3T2 × 3K.*
+*Target: chooser price benchmarked with Monte Carlo-valued call/put legs. The table includes the closed-form BSM baseline for the same contracts.*
 
 ---
 
@@ -1303,10 +1587,9 @@ All features are scaled using `RobustScaler` fitted **only** on the training set
     with sufficient capacity can still fit the surface, but the direct
     historical-vol feature leakage into the input set has been removed.
 3. **Volatility term-structure matching**: Vol used for each maturity is now
-    matched to option T2, preventing term-structure mismatch. The pricing
-    features themselves exclude all historical vol windows and vol-derived
-    ratios, so Approach 2 must learn from price/momentum/VIX/rate/sentiment
-    signals only.
+    matched to option T2, preventing term-structure mismatch. Approach 2 now
+    includes volatility proxy features such as VIX, volatility ratios, and
+    volatility change signals, while excluding raw historical volatility windows.
 
 #### Model Architecture
 4. **Simplified chooser grid**: 2 decision times × 3 maturities × 3 moneyness levels.
@@ -1317,9 +1600,9 @@ All features are scaled using `RobustScaler` fitted **only** on the training set
 ### Model-Specific Notes
 
 #### Approach 2 – Route 2 Pricing
-- **LinearRegression & MLP**: R² should be materially lower now that all
-    historical-vol input leakage has been removed. Any remaining fit comes from
-    genuine market-state variables rather than a direct vol proxy.
+- **LinearRegression & MLP**: R² should improve materially once volatility
+    proxy features are included, because these models now receive the
+    strongest explanatory signal that is allowed by the experiment design.
 - **XGBoost/GradientBoosting**: Lower R² (0.40-0.50) may indicate that tree
   models struggle with the smooth closed-form surface; alternatively, the
   current feature set lacks sufficient flexibility for tree splits. This is
@@ -1436,7 +1719,7 @@ def export_markdown_pdf(md_text: str, pdf_path: Path) -> None:
             story.append(Paragraph(escape_text(text), body_style))
         buffer.clear()
 
-    story: list = [Paragraph(f"Week 5 – Machine Learning Model Architecture Design ({RUN_DATE})", title_style), Spacer(1, 0.12 * inch)]
+    story: list = [Paragraph(f"Week 6 – Machine Learning Model Architecture Design ({RUN_DATE})", title_style), Spacer(1, 0.12 * inch)]
     paragraph_buffer: list[str] = []
     lines = md_text.splitlines()
     i = 0
@@ -1506,17 +1789,263 @@ def export_markdown_pdf(md_text: str, pdf_path: Path) -> None:
     doc.build(story)
 
 
+def normalize_pdf_compatibility(pdf_path: Path) -> None:
+    """Rewrite PDF via system filter for better viewer compatibility when available."""
+    try:
+        subprocess.run(["xattr", "-c", str(pdf_path)], check=False, capture_output=True)
+        cups = subprocess.run(["which", "cupsfilter"], check=False, capture_output=True, text=True)
+        if cups.returncode != 0:
+            return
+
+        normalized_path = pdf_path.with_suffix(".normalized.pdf")
+        with normalized_path.open("wb") as out:
+            proc = subprocess.run(
+                ["cupsfilter", "-m", "application/pdf", str(pdf_path)],
+                check=False,
+                stdout=out,
+                stderr=subprocess.PIPE,
+                text=False,
+            )
+        if proc.returncode == 0 and normalized_path.exists() and normalized_path.stat().st_size > 0:
+            normalized_path.replace(pdf_path)
+    except Exception as exc:
+        logger.warning("PDF normalization skipped: %s", exc)
+
+
+def _safe_slug(text: str) -> str:
+    return "".join(ch.lower() if ch.isalnum() else "_" for ch in text).strip("_")
+
+
+def _extract_tree_estimator(md: dict):
+    if md.get("is_tree") and "model" in md:
+        return md["model"]
+    pipeline = md.get("pipeline")
+    if pipeline is None:
+        return None
+    if hasattr(pipeline, "named_steps"):
+        estimator = pipeline.named_steps.get("model")
+        if estimator is not None and hasattr(estimator, "feature_importances_"):
+            return estimator
+    return None
+
+
+def _shap_filename(approach: str, model_name: str) -> str:
+    return f"week6_shap_{approach}_{_safe_slug(model_name)}.png"
+
+
+def _make_flat_feature_names(feature_names: list[str], lookback: int) -> list[str]:
+    flat_names: list[str] = []
+    for lag in range(lookback, 0, -1):
+        for name in feature_names:
+            flat_names.append(f"t-{lag}:{name}")
+    return flat_names
+
+
+def _build_lstm_sequence_inputs(
+    X_reference: np.ndarray,
+    scaler: RobustScaler,
+    lookback: int,
+) -> tuple[np.ndarray, np.ndarray]:
+    X_sc = scaler.transform(X_reference)
+    sequences: list[np.ndarray] = []
+    for idx in range(lookback, len(X_sc)):
+        sequences.append(X_sc[idx - lookback : idx])
+    if not sequences:
+        empty_3d = np.empty((0, lookback, X_reference.shape[1]))
+        empty_2d = np.empty((0, lookback * X_reference.shape[1]))
+        return empty_3d, empty_2d
+    seq_3d = np.asarray(sequences)
+    seq_2d = seq_3d.reshape(len(seq_3d), -1)
+    return seq_3d, seq_2d
+
+
+def _plot_shap_from_explainer(
+    explainer,
+    X_sample: np.ndarray,
+    feature_names: list[str],
+    out_path: Path,
+    title: str,
+) -> bool:
+    try:
+        shap_values = explainer(X_sample)
+        plt.figure(figsize=(10, 6))
+        shap.summary_plot(
+            shap_values,
+            X_sample,
+            feature_names=feature_names,
+            plot_type="bar",
+            show=False,
+            color="#1f77b4",
+        )
+        plt.title(title)
+        plt.tight_layout()
+        plt.savefig(out_path, dpi=160, bbox_inches="tight")
+        plt.close()
+        logger.info("Saved SHAP → %s", out_path.name)
+        return True
+    except Exception as exc:
+        plt.close("all")
+        logger.warning("SHAP rendering failed for %s: %s", out_path.name, exc)
+        return False
+
+
+def export_model_shap_plot(
+    model_name: str,
+    md: dict,
+    X_reference: np.ndarray,
+    feature_names: list[str],
+    out_path: Path,
+    title: str,
+    max_samples: int = 200,
+) -> bool:
+    """Export one SHAP comparison plot per model."""
+    if not HAS_SHAP:
+        logger.warning("SHAP not available; skipping %s", out_path.name)
+        return False
+
+    if len(X_reference) == 0:
+        logger.warning("Empty reference set for SHAP plot: %s", out_path.name)
+        return False
+
+    sample_size = min(max_samples, len(X_reference))
+
+    if model_name == "LSTM" and md.get("model") is not None:
+        import os
+        os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
+        os.environ["METAL_DEVICE_WRAPPER_TYPE"] = "0"
+
+        try:
+            import tensorflow as tf  # type: ignore[import-not-found]
+            tf.config.set_visible_devices([], "GPU")
+        except Exception:
+            pass
+
+        scaler = md.get("scaler")
+        lookback = int(md.get("lookback", LSTM_LOOKBACK))
+        if scaler is None:
+            logger.warning("Missing scaler for LSTM SHAP plot: %s", out_path.name)
+            return False
+        seq_3d, seq_ref = _build_lstm_sequence_inputs(X_reference, scaler, lookback)
+        if len(seq_ref) == 0:
+            logger.warning("Not enough sequence data for LSTM SHAP plot: %s", out_path.name)
+            return False
+        seq_sample = seq_ref[: min(sample_size, len(seq_ref))]
+        seq_names = _make_flat_feature_names(feature_names, lookback)
+
+        surrogate_size = min(max(50, sample_size), len(seq_ref))
+        surrogate_X = seq_ref[:surrogate_size]
+        surrogate_y = md["model"].predict(seq_3d[:surrogate_size], verbose=0).reshape(-1)
+        surrogate = RandomForestRegressor(n_estimators=120, random_state=RANDOM_STATE, n_jobs=-1)
+        surrogate.fit(surrogate_X, surrogate_y)
+        background = surrogate_X[: min(100, len(surrogate_X))]
+        explainer = shap.TreeExplainer(surrogate, data=background)
+        shap_values = explainer.shap_values(seq_sample)
+        if isinstance(shap_values, list):
+            shap_values = shap_values[0]
+        plt.figure(figsize=(12, 6))
+        shap.summary_plot(
+            shap_values,
+            seq_sample,
+            feature_names=seq_names,
+            plot_type="bar",
+            show=False,
+            color="#1f77b4",
+        )
+        plt.title(f"{title} (surrogate RF)")
+        plt.tight_layout()
+        plt.savefig(out_path, dpi=160, bbox_inches="tight")
+        plt.close()
+        logger.info("Saved SHAP → %s", out_path.name)
+        return True
+
+    if "model" in md and md.get("is_tree"):
+        estimator = md["model"]
+    else:
+        estimator = md.get("pipeline")
+
+    if estimator is None:
+        logger.warning("No estimator available for SHAP plot: %s", out_path.name)
+        return False
+
+    X_sample = X_reference[:sample_size]
+    background = X_reference[: min(100, sample_size)]
+
+    try:
+        is_xgb_like = estimator.__class__.__module__.startswith("xgboost") or "XGB" in estimator.__class__.__name__
+        if is_xgb_like:
+            masker = shap.maskers.Independent(background)
+            explainer = shap.Explainer(estimator.predict, masker, algorithm="permutation")
+        else:
+            try:
+                explainer = shap.TreeExplainer(estimator, data=background)
+            except Exception:
+                masker = shap.maskers.Independent(background)
+                explainer = shap.Explainer(estimator.predict, masker, algorithm="permutation")
+    except Exception:
+        masker = shap.maskers.Independent(background)
+        explainer = shap.Explainer(estimator.predict, masker, algorithm="permutation")
+
+    return _plot_shap_from_explainer(explainer, X_sample, feature_names, out_path, title)
+
+
+def save_trained_models(
+    vol_models: dict,
+    pricing_models: dict,
+    out_dir: Path,
+) -> list[Path]:
+    """Persist trained model artifacts for both approaches."""
+    out_dir.mkdir(parents=True, exist_ok=True)
+    saved_paths: list[Path] = []
+
+    def save_one(prefix: str, model_name: str, md: dict) -> None:
+        slug = _safe_slug(model_name)
+        if model_name == "LSTM" and md.get("model") is not None and HAS_TF:
+            keras_path = out_dir / f"{OUTPUT_WEEK}_{prefix}_{slug}_{PIPELINE_VER}.keras"
+            md["model"].save(keras_path)
+            saved_paths.append(keras_path)
+
+            meta_path = out_dir / f"{OUTPUT_WEEK}_{prefix}_{slug}_{PIPELINE_VER}.joblib"
+            payload = {k: v for k, v in md.items() if k != "model"}
+            payload["artifact"] = keras_path.name
+            joblib.dump(payload, meta_path)
+            saved_paths.append(meta_path)
+            return
+
+        model_obj = md.get("model") if md.get("is_tree") else md.get("pipeline")
+        if model_obj is None:
+            return
+
+        model_path = out_dir / f"{OUTPUT_WEEK}_{prefix}_{slug}_{PIPELINE_VER}.joblib"
+        payload = {
+            "model": model_obj,
+            "best_params": md.get("best_params", {}),
+            "val_mae": md.get("val_mae"),
+            "cv_mae": md.get("cv_mae"),
+            "is_tree": md.get("is_tree", False),
+        }
+        joblib.dump(payload, model_path)
+        saved_paths.append(model_path)
+
+    for name, md in vol_models.items():
+        save_one("approach1", name, md)
+    for name, md in pricing_models.items():
+        save_one("approach2", name, md)
+
+    return saved_paths
+
+
 # =============================================================================
 # 11. Main Entry Point
 # =============================================================================
 
 def main() -> None:
     logger.info("=" * 60)
-    logger.info("Week 5 – ML Model Design & Implementation")
+    logger.info("Week 6 – ML Model Design & Implementation")
     logger.info("=" * 60)
 
     PROCESSED_DIR.mkdir(parents=True, exist_ok=True)
     REPORTS_DIR.mkdir(parents=True, exist_ok=True)
+    MODELS_DIR.mkdir(parents=True, exist_ok=True)
 
     # ── Load & engineer features ───────────────────────────────────────────
     logger.info("[1/7] Loading raw market data...")
@@ -1582,10 +2111,18 @@ def main() -> None:
     logger.info("[6/7] Approach 2 – End-to-End Chooser Pricing...")
     pricing_models  = train_pricing_models(X_opt_train, y_opt_train, X_opt_val, y_opt_val)
     pricing_results = evaluate_approach2(pricing_models, opt_test, pricing_cols)
+    pricing_bsm_baseline = evaluate_bsm_baseline(opt_test)
+    pricing_results_with_baseline = pd.concat(
+        [pricing_results, pricing_bsm_baseline],
+        ignore_index=True,
+    )
     
     # Add stratified evaluation for diagnostics
     logger.info("  [Approach 2] Computing stratified error breakdown...")
     pricing_stratified = evaluate_approach2_stratified(pricing_models, opt_test, pricing_cols)
+
+    # Persist trained model artifacts
+    saved_model_paths = save_trained_models(vol_models, pricing_models, MODELS_DIR)
 
     # ── Export results & plots ────────────────────────────────────────────
     logger.info("[7/7] Exporting results and generating report...")
@@ -1596,13 +2133,13 @@ def main() -> None:
     comp_csv    = PROCESSED_DIR / f"{COMP_STEM}.csv"
 
     vol_results.to_csv(vol_csv,     index=False)
-    pricing_results.to_csv(pricing_csv, index=False)
+    pricing_results_with_baseline.to_csv(pricing_csv, index=False)
     pricing_stratified.to_csv(pricing_strat_csv, index=False)
     logger.info("  Stratified pricing results saved to %s", pricing_strat_csv)
 
     # Combined comparison
     vol_side     = vol_results.add_prefix("app1_").rename(columns={"app1_model": "model_A1"})
-    pricing_side = pricing_results.add_prefix("app2_").rename(columns={"app2_model": "model_A2"})
+    pricing_side = pricing_results_with_baseline.add_prefix("app2_").rename(columns={"app2_model": "model_A2"})
     comparison   = pd.concat([vol_side.reset_index(drop=True),
                                pricing_side.reset_index(drop=True)], axis=1)
     comparison.to_csv(comp_csv, index=False)
@@ -1610,17 +2147,44 @@ def main() -> None:
     # Feature importance
     imp_df = extract_feature_importance(vol_models, feature_cols)
     if imp_df is not None:
-        plot_feature_importance(imp_df, REPORTS_DIR / "week5_feature_importance.png")
+        plot_feature_importance(imp_df, REPORTS_DIR / "week6_feature_importance.png")
 
-    plot_vol_results(vol_results,     REPORTS_DIR / "week5_vol_prediction_comparison.png")
-    plot_pricing_results(pricing_results, REPORTS_DIR / "week5_pricing_comparison.png")
-    plot_model_comparison(vol_results, pricing_results, REPORTS_DIR / "week5_model_performance.png")
+    shap_artifacts: list[Path] = []
+    for name, md in vol_models.items():
+        out_path = REPORTS_DIR / _shap_filename("app1", name)
+        if export_model_shap_plot(
+            name,
+            md,
+            vol_train[feature_cols].values,
+            feature_cols,
+            out_path,
+            f"Week 6 SHAP Feature Importance – Approach 1 / {name}",
+        ):
+            shap_artifacts.append(out_path)
+
+    for name, md in pricing_models.items():
+        out_path = REPORTS_DIR / _shap_filename("app2", name)
+        if export_model_shap_plot(
+            name,
+            md,
+            opt_train[pricing_cols].values,
+            pricing_cols,
+            out_path,
+            f"Week 6 SHAP Feature Importance – Approach 2 / {name}",
+        ):
+            shap_artifacts.append(out_path)
+
+    plot_vol_results(vol_results,     REPORTS_DIR / "week6_vol_prediction_comparison.png")
+    plot_pricing_results(pricing_results_with_baseline, REPORTS_DIR / "week6_pricing_comparison.png")
+    plot_model_comparison(vol_results, pricing_results_with_baseline, REPORTS_DIR / "week6_model_performance.png")
 
     # Architecture design document
     arch_doc  = generate_architecture_doc(
-        vol_results, pricing_results,
+        vol_results, pricing_results_with_baseline,
         vol_train, vol_val, vol_test, opt_train,
         feature_cols, pricing_cols,
+        vol_models, pricing_models,
+        _latest_week4_baseline(),
     )
     arch_path = REPORTS_DIR / f"{REPORT_STEM}.md"
     arch_path.write_text(arch_doc, encoding="utf-8")
@@ -1628,12 +2192,30 @@ def main() -> None:
 
     arch_pdf = REPORTS_DIR / f"{REPORT_STEM}.pdf"
     export_markdown_pdf(arch_doc, arch_pdf)
+    normalize_pdf_compatibility(arch_pdf)
     logger.info("Architecture PDF → %s", arch_pdf.name)
+
+    # Create an extensionless entry so opening REPORT_STEM resolves to the markdown report.
+    arch_entry = REPORTS_DIR / REPORT_STEM
+    try:
+        if arch_entry.exists() or arch_entry.is_symlink():
+            arch_entry.unlink()
+        arch_entry.symlink_to(arch_path.name)
+    except OSError:
+        arch_entry.write_text(
+            "\n".join([
+                f"{REPORT_STEM} is an entry file.",
+                f"Markdown report: {arch_path.name}",
+                f"PDF report: {arch_pdf.name}",
+            ]) + "\n",
+            encoding="utf-8",
+        )
+    logger.info("Architecture entry → %s", arch_entry.name)
 
     # ── Final summary ──────────────────────────────────────────────────────
     logger.info("")
     logger.info("=" * 60)
-    logger.info("WEEK 5 COMPLETE")
+    logger.info("WEEK 6 COMPLETE")
     logger.info("=" * 60)
     logger.info("Approach 1 – Volatility Prediction (Test Set):")
     for _, r in vol_results.iterrows():
@@ -1642,18 +2224,20 @@ def main() -> None:
             r["model"], r["vol_rmse"], r["pricing_mae"],
         )
     logger.info("Approach 2 – End-to-End Chooser Pricing (Test Set):")
-    for _, r in pricing_results.iterrows():
+    for _, r in pricing_results_with_baseline.iterrows():
         logger.info(
             "  %-18s | MAE=%.4f | RMSE=%.4f | R²=%.4f",
             r["model"], r["mae"], r["rmse"], r["r2"],
         )
     logger.info("")
     outputs = [
-        feat_csv, vol_csv, pricing_csv, comp_csv, arch_path, arch_pdf,
-        REPORTS_DIR / "week5_feature_importance.png",
-        REPORTS_DIR / "week5_vol_prediction_comparison.png",
-        REPORTS_DIR / "week5_pricing_comparison.png",
-        REPORTS_DIR / "week5_model_performance.png",
+        feat_csv, vol_csv, pricing_csv, comp_csv, arch_path, arch_pdf, arch_entry,
+        *saved_model_paths,
+        REPORTS_DIR / "week6_feature_importance.png",
+        *shap_artifacts,
+        REPORTS_DIR / "week6_vol_prediction_comparison.png",
+        REPORTS_DIR / "week6_pricing_comparison.png",
+        REPORTS_DIR / "week6_model_performance.png",
     ]
     logger.info("Outputs:")
     for p in outputs:
