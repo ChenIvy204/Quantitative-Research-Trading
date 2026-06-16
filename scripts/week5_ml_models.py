@@ -73,8 +73,6 @@ from sklearn.preprocessing import RobustScaler
 from sklearn.metrics import mean_absolute_error, mean_squared_error
 from sklearn.pipeline import Pipeline
 from sklearn.model_selection import RandomizedSearchCV, TimeSeriesSplit
-from tenacity import retry, stop_after_attempt, wait_exponential
-
 try:
     import xgboost as xgb
     HAS_XGB = os.environ.get("WEEK6_DISABLE_XGB") != "1"
