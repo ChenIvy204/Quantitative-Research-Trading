@@ -1,0 +1,42 @@
+INFO | ============================================================
+INFO | Week 6 – ML Model Design & Implementation
+INFO | ============================================================
+INFO | [1/7] Loading raw market data...
+INFO | Data loaded successfully: 2018-01-02 to 2024-12-31, rows=1761
+INFO |   1761 trading days loaded.
+INFO | [2/7] Engineering features...
+INFO |   Feature dataset: 1741 rows → week6_feature_dataset_v1.0.csv
+INFO | [3/7] Building ML datasets...
+INFO |   Vol dataset: 1681 rows | Option dataset: 25515 rows
+INFO | [4/7] Splitting data (70%%/15%%/15%%)...
+INFO |   Vol  – train: 1176 | val: 252 | test: 253
+INFO |   Opt  – train: 17850 | val: 3825 | test: 3840
+INFO | [5/7] Approach 1 – ML Volatility Prediction...
+INFO |   [Approach 1] RandomForest random search...
+INFO |     RF   val MAE=0.075577 | best=n_estimators=200, max_depth=8, min_samples_leaf=6, min_samples_split=10, max_features=sqrt
+INFO |   [Approach 1] XGBoost random search...
+INFO |     XGBoost          val MAE=0.071005 | best=n_estimators=200, max_depth=3, learning_rate=0.01, subsample=0.8, colsample_bytree=0.9, min_child_weight=7
+INFO |   [Approach 1] Running LSTM ablation...
+INFO |     LSTM ablation: lookback=10, units=32/16, lr=0.001
+INFO |     LSTM ablation: lookback=20, units=64/32, lr=0.001
+INFO |     LSTM ablation: lookback=40, units=128/64, lr=0.0005
+INFO |     LSTM ablation: lookback=20, units=128/64, lr=0.001
+INFO |     Best LSTM config: {'lookback': 20, 'units1': 64, 'units2': 32, 'lr': 0.001} with val MAE=0.046308
+INFO |   [Approach 1] Training LinearRegression (volatility target)...
+INFO |   [Approach 1] Training MLP (volatility target)...
+INFO |   Approach 1 | RandomForest     | vol MAE=0.07018 RMSE=0.09641 | chooser MAE=7.1302 RMSE=9.6827 | baseline MAE=0.6073 RMSE=0.8306
+INFO |   Approach 1 | XGBoost          | vol MAE=0.06879 RMSE=0.09608 | chooser MAE=7.9650 RMSE=11.0598 | baseline MAE=0.6073 RMSE=0.8306
+INFO |   Approach 1 | LSTM             | vol MAE=0.06279 RMSE=0.09462 | chooser MAE=7.5331 RMSE=11.2514 | baseline MAE=0.6101 RMSE=0.8341
+INFO |   Approach 1 | LinearRegression | vol MAE=0.09926 RMSE=0.12709 | chooser MAE=10.0806 RMSE=14.3767 | baseline MAE=0.6073 RMSE=0.8306
+INFO |   Approach 1 | NeuralNetwork    | vol MAE=0.13669 RMSE=0.17166 | chooser MAE=13.6551 RMSE=18.1805 | baseline MAE=0.6073 RMSE=0.8306
+INFO |   [Approach 1] Computing stratified error breakdown...
+Traceback (most recent call last):
+  File "/Users/chenairui050204/Quantitative-Research-Trading/scripts/week5_ml_models.py", line 2859, in <module>
+    main()
+  File "/Users/chenairui050204/Quantitative-Research-Trading/scripts/week5_ml_models.py", line 2662, in main
+    vol_stratified = evaluate_approach1_stratified(
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/chenairui050204/Quantitative-Research-Trading/scripts/week5_ml_models.py", line 1226, in evaluate_approach1_stratified
+    assert len(y_pred) == len(opt_test_reset), f"Prediction length mismatch for {name}"
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Prediction length mismatch for RandomForest

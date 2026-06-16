@@ -57,6 +57,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
 import os
+import time
 from reportlab.lib import colors
 from reportlab.lib.enums import TA_LEFT
 from reportlab.lib.pagesizes import A4
@@ -72,6 +73,7 @@ from sklearn.preprocessing import RobustScaler
 from sklearn.metrics import mean_absolute_error, mean_squared_error
 from sklearn.pipeline import Pipeline
 from sklearn.model_selection import RandomizedSearchCV, TimeSeriesSplit
+from tenacity import retry, stop_after_attempt, wait_exponential
 
 try:
     import xgboost as xgb
@@ -129,12 +131,20 @@ RANDOM_STATE    = 42
 CHOOSER_MC_PATHS = 2_000
 VIX_LOW         = 20.0
 VIX_HIGH        = 30.0
-SEARCH_CV_SPLITS = 5
 SEARCH_CV_SPLITS = 3
 SEARCH_N_ITER_LR = 2
 SEARCH_N_ITER_RF = 8
 SEARCH_N_ITER_GBM = 2
 SEARCH_N_ITER_MLP = 2
+
+
+def _dedupe_daily_frame(df: pd.DataFrame, name: str) -> pd.DataFrame:
+    """Drop duplicated dates and keep the most recent record for each day."""
+    if df.index.duplicated().any():
+        dup_count = int(df.index.duplicated().sum())
+        logger.warning("%s contains %d duplicated date rows; keeping the last occurrence.", name, dup_count)
+        df = df[~df.index.duplicated(keep="last")].copy()
+    return df.sort_index()
 
 logger = logging.getLogger("week5_ml_models")
 logging.basicConfig(level=logging.INFO, format="%(levelname)s | %(message)s")
@@ -261,34 +271,54 @@ def chooser_price_mc_scalar(
 # =============================================================================
 
 def load_market_data() -> pd.DataFrame:
-    """Load and merge raw market data into a single daily DataFrame."""
+    """Load and merge raw market data with retry and integrity checks."""
+    
+    # 定义带重试的读取函数
+    def _read_csv_with_retry(path, **kwargs):
+        for attempt in range(3):
+            try:
+                return pd.read_csv(path, **kwargs)
+            except Exception as e:
+                if attempt == 2:
+                    logger.error(f"Failed to load {path} after 3 attempts: {e}")
+                    raise
+                logger.warning(f"Attempt {attempt+1} to read {path} failed: {e}. Retrying...")
+                time.sleep(2 ** attempt)  # 指数退避
+        raise RuntimeError(f"Unreachable: failed to read {path}")
+
     # ── Stock prices ──────────────────────────────────────────────────────
-    stock = pd.read_csv(RAW_DIR / "yahoo_jpm_2018_2024.csv", parse_dates=["Date"])
+    stock = _read_csv_with_retry(RAW_DIR / "yahoo_jpm_2018_2024.csv", parse_dates=["Date"])
     stock = stock.rename(columns={"Date": "date"})
     col_map = {c: c.lower() for c in stock.columns}
-    stock   = stock.rename(columns=col_map)
+    stock = stock.rename(columns=col_map)
     stock["date"] = pd.to_datetime(stock["date"]).dt.normalize()
-    stock   = stock[["date", "close"]].dropna().set_index("date")
+    stock = stock[["date", "close"]].dropna().set_index("date")
+    stock = _dedupe_daily_frame(stock, "stock")
 
     # ── Risk-free rate (10-yr Treasury) ───────────────────────────────────
-    rates = pd.read_csv(RAW_DIR / "fred_DGS10_2018_2024.csv", parse_dates=["date"])
+    rates = _read_csv_with_retry(RAW_DIR / "fred_DGS10_2018_2024.csv", parse_dates=["date"])
     rates["dgs10"] = pd.to_numeric(rates["value"], errors="coerce")
     rates = rates[["date", "dgs10"]].set_index("date").sort_index().ffill()
+    rates = _dedupe_daily_frame(rates, "rates")
 
     # ── VIX ───────────────────────────────────────────────────────────────
-    vix = pd.read_csv(RAW_DIR / "fred_VIXCLS_2018_2024.csv", parse_dates=["date"])
+    vix = _read_csv_with_retry(RAW_DIR / "fred_VIXCLS_2018_2024.csv", parse_dates=["date"])
     vix["vix"] = pd.to_numeric(vix["value"], errors="coerce")
     vix = vix[["date", "vix"]].set_index("date").sort_index().ffill()
+    vix = _dedupe_daily_frame(vix, "vix")
 
     # ── Dividends → TTM dividend yield ────────────────────────────────────
-    divs = pd.read_csv(RAW_DIR / "jpm_dividends_2018_2024.csv")
+    divs = _read_csv_with_retry(RAW_DIR / "jpm_dividends_2018_2024.csv")
     divs["date"] = (
         pd.to_datetime(divs["date"], utc=True).dt.tz_convert(None).dt.normalize()
     )
     divs = divs[divs["dividend"] > 0].set_index("date").sort_index()
+    if divs.index.duplicated().any():
+        logger.warning("dividends contains duplicated dates; aggregating to the last row per day.")
+        divs = divs[~divs.index.duplicated(keep="last")]
 
     # ── News sentiment ────────────────────────────────────────────────────
-    news = pd.read_csv(
+    news = _read_csv_with_retry(
         RAW_DIR / "alphavantage_news_jpm_2018_2024.csv",
         parse_dates=["publishedAt"],
     )
@@ -298,25 +328,33 @@ def load_market_data() -> pd.DataFrame:
         .agg(["mean", "count"])
         .rename(columns={"mean": "sentiment", "count": "news_count"})
     )
+    daily_sentiment = _dedupe_daily_frame(daily_sentiment, "news_sentiment")
 
     # ── Merge everything ──────────────────────────────────────────────────
     df = stock.copy()
     df = df.join(rates, how="left").join(vix, how="left")
-    # Forward-fill only (no bfill) to prevent look-ahead bias in starting period
     df["dgs10"] = df["dgs10"].ffill()
-    df["vix"]   = df["vix"].ffill()
-    # Drop rows with missing dgs10 or vix at the start (before first data point)
+    df["vix"] = df["vix"].ffill()
     df = df.dropna(subset=["dgs10", "vix"])
 
-    div_series    = divs["dividend"].reindex(df.index, fill_value=0.0)
+    div_series = divs["dividend"].reindex(df.index, fill_value=0.0)
     df["ttm_div"] = div_series.rolling(ANNUALISE, min_periods=1).sum()
-    df["q"]       = df["ttm_div"] / df["close"]
+    df["q"] = df["ttm_div"] / df["close"]
 
     df = df.join(daily_sentiment, how="left")
-    df["sentiment"]  = df["sentiment"].fillna(0.0)
+    df["sentiment"] = df["sentiment"].fillna(0.0)
     df["news_count"] = df["news_count"].fillna(0.0)
     df["r"] = df["dgs10"] / 100.0
 
+    # 数据完整性检查
+    if df.isnull().any().any():
+        logger.warning("Missing values detected in merged data; forward fill already applied.")
+    if df.index.duplicated().any():
+        logger.warning("Merged dataframe still contains duplicated dates; deduplicating now.")
+        df = _dedupe_daily_frame(df, "merged")
+    if df.empty:
+        raise ValueError("Loaded dataframe is empty after processing.")
+    logger.info(f"Data loaded successfully: {df.index.min().date()} to {df.index.max().date()}, rows={len(df)}")
     return df.sort_index()
 
 
@@ -574,9 +612,43 @@ def time_series_split(
 
 
 def _make_time_series_cv(n_samples: int, max_splits: int = SEARCH_CV_SPLITS) -> TimeSeriesSplit:
-    """Create a safe TimeSeriesSplit for random-search cross-validation."""
+    """Create a fixed-length rolling TimeSeriesSplit for random-search cross-validation."""
     n_splits = min(max_splits, max(2, n_samples // 50))
-    return TimeSeriesSplit(n_splits=n_splits)
+    window_size = max(2, n_samples // (n_splits + 1))
+    return TimeSeriesSplit(n_splits=n_splits, max_train_size=window_size)
+
+
+def describe_time_series_cv(df: pd.DataFrame, max_splits: int = SEARCH_CV_SPLITS) -> list[dict[str, str | int]]:
+    """Summarize rolling chronological CV folds as date ranges for the report."""
+    dates = pd.Index(df.index.unique().sort_values())
+    n_splits = min(max_splits, max(2, len(dates) // 50))
+    window_size = max(2, len(dates) // (n_splits + 1))
+    splitter = TimeSeriesSplit(n_splits=n_splits, max_train_size=window_size)
+
+    rows: list[dict[str, str | int]] = []
+    for fold_no, (train_idx, val_idx) in enumerate(splitter.split(dates), start=1):
+        train_dates = dates[train_idx]
+        val_dates = dates[val_idx]
+        rows.append({
+            "fold": fold_no,
+            "window_type": "rolling",
+            "train_range": f"{train_dates[0].date()} → {train_dates[-1].date()}",
+            "val_range": f"{val_dates[0].date()} → {val_dates[-1].date()}",
+            "train_days": len(train_dates),
+            "val_days": len(val_dates),
+            "train_window_days": len(train_dates),
+            "val_window_days": len(val_dates),
+        })
+    return rows
+
+
+def load_trained_model_artifact(path: Path) -> object:
+    """Load a saved model artifact with explicit error handling."""
+    try:
+        return joblib.load(path)
+    except Exception as exc:
+        logger.exception("Failed to load model artifact %s: %s", path, exc)
+        raise
 
 
 def _run_random_search(
@@ -612,6 +684,22 @@ def _refit_best_estimator(
     model = clone(search.best_estimator_)
     model.fit(X_full, y_full)
     return model
+
+
+def _evaluate_default_candidate(
+    estimator,
+    X_train: np.ndarray,
+    y_train: np.ndarray,
+    X_val: np.ndarray,
+    y_val: np.ndarray,
+) -> dict[str, float]:
+    """Fit a default candidate once and score it as the before-tuning baseline."""
+    baseline = clone(estimator)
+    fit_start = time.perf_counter()
+    baseline.fit(X_train, y_train)
+    fit_seconds = time.perf_counter() - fit_start
+    val_mae = mean_absolute_error(y_val, baseline.predict(X_val))
+    return {"baseline_val_mae": float(val_mae), "baseline_fit_seconds": float(fit_seconds)}
 
 
 def _format_param_summary(params: dict[str, object], keys: list[str]) -> str:
@@ -657,6 +745,14 @@ def train_vol_models(
 
     # ── Random Forest ──────────────────────────────────────────────────────
     logger.info("  [Approach 1] RandomForest random search...")
+    rf_baseline = _evaluate_default_candidate(
+        RandomForestRegressor(random_state=RANDOM_STATE, n_jobs=-1),
+        X_train,
+        y_train,
+        X_val,
+        y_val,
+    )
+    rf_search_start = time.perf_counter()
     rf_search = _run_random_search(
         RandomForestRegressor(random_state=RANDOM_STATE, n_jobs=-1),
         {
@@ -670,13 +766,20 @@ def train_vol_models(
         y_train,
         SEARCH_N_ITER_RF,
     )
+    rf_search_seconds = time.perf_counter() - rf_search_start
     rf_val_mae = mean_absolute_error(y_val, rf_search.predict(X_val))
+    rf_refit_start = time.perf_counter()
     rf_model = _refit_best_estimator(rf_search, X_full, y_full)
+    rf_refit_seconds = time.perf_counter() - rf_refit_start
     logger.info("    RF   val MAE=%.6f | best=%s", rf_val_mae, _format_param_summary(rf_search.best_params_, ["n_estimators", "max_depth", "min_samples_leaf", "min_samples_split", "max_features"]))
     models["RandomForest"] = {
         "model": rf_model,
         "val_mae": rf_val_mae,
+        **rf_baseline,
         "cv_mae": float(-rf_search.best_score_),
+        "search_seconds": rf_search_seconds,
+        "refit_seconds": rf_refit_seconds,
+        "tuning_seconds": rf_search_seconds + rf_refit_seconds,
         "best_params": rf_search.best_params_,
         "search": rf_search,
         "is_tree": True,
@@ -685,6 +788,14 @@ def train_vol_models(
     # ── XGBoost (or sklearn GBDT fallback) ────────────────────────────────
     if HAS_XGB:
         logger.info("  [Approach 1] XGBoost random search...")
+        gbm_baseline = _evaluate_default_candidate(
+            xgb.XGBRegressor(random_state=RANDOM_STATE, verbosity=0),
+            X_train,
+            y_train,
+            X_val,
+            y_val,
+        )
+        gbm_search_start = time.perf_counter()
         gbm_search = _run_random_search(
             xgb.XGBRegressor(random_state=RANDOM_STATE, verbosity=0),
             {
@@ -701,8 +812,17 @@ def train_vol_models(
             y_train,
             SEARCH_N_ITER_GBM,
         )
+        gbm_search_seconds = time.perf_counter() - gbm_search_start
     else:
         logger.info("  [Approach 1] GradientBoosting random search (XGBoost not found)...")
+        gbm_baseline = _evaluate_default_candidate(
+            GradientBoostingRegressor(random_state=RANDOM_STATE),
+            X_train,
+            y_train,
+            X_val,
+            y_val,
+        )
+        gbm_search_start = time.perf_counter()
         gbm_search = _run_random_search(
             GradientBoostingRegressor(random_state=RANDOM_STATE),
             {
@@ -717,9 +837,12 @@ def train_vol_models(
             y_train,
             SEARCH_N_ITER_GBM,
         )
+        gbm_search_seconds = time.perf_counter() - gbm_search_start
     gbm_name    = "XGBoost" if HAS_XGB else "GradientBoosting"
     gbm_val_mae = mean_absolute_error(y_val, gbm_search.predict(X_val))
+    gbm_refit_start = time.perf_counter()
     gbm_model = _refit_best_estimator(gbm_search, X_full, y_full)
+    gbm_refit_seconds = time.perf_counter() - gbm_refit_start
     logger.info(
         "    %-16s val MAE=%.6f | best=%s",
         gbm_name,
@@ -732,20 +855,78 @@ def train_vol_models(
     models[gbm_name] = {
         "model": gbm_model,
         "val_mae": gbm_val_mae,
+        **gbm_baseline,
         "cv_mae": float(-gbm_search.best_score_),
+        "search_seconds": gbm_search_seconds,
+        "refit_seconds": gbm_refit_seconds,
+        "tuning_seconds": gbm_search_seconds + gbm_refit_seconds,
         "best_params": gbm_search.best_params_,
         "search": gbm_search,
         "is_tree": True,
     }
 
-    # ── LSTM (TensorFlow / Keras) ─────────────────────────────────────────
+    # ── LSTM (TensorFlow / Keras) 消融实验 ────────────────────────────────
     if HAS_TF:
-        logger.info("  [Approach 1] Training LSTM (lookback=%d days)...", LSTM_LOOKBACK)
-        lstm_result = _train_lstm(X_train, y_train, X_val, y_val)
+        logger.info("  [Approach 1] Running LSTM ablation...")
+        lstm_result = _run_lstm_ablation(X_train, y_train, X_val, y_val, feature_names)
         if lstm_result is not None:
             models["LSTM"] = lstm_result
     else:
         logger.info("  [Approach 1] Skipping LSTM (TensorFlow not found).")
+
+        # ── Linear Regression for volatility prediction ──────────────────────
+    logger.info("  [Approach 1] Training LinearRegression (volatility target)...")
+    lr_fit_start = time.perf_counter()
+    lr_vol = Pipeline([
+        ("scaler", RobustScaler()),
+        ("model", LinearRegression()),
+    ])
+    lr_vol.fit(X_train, y_train)
+    lr_fit_seconds = time.perf_counter() - lr_fit_start
+    lr_vol_val_mae = mean_absolute_error(y_val, lr_vol.predict(X_val))
+    lr_full_start = time.perf_counter()
+    lr_vol_model = clone(lr_vol)
+    lr_vol_model.fit(X_full, y_full)
+    lr_full_seconds = time.perf_counter() - lr_full_start
+    models["LinearRegression"] = {
+        "model": lr_vol_model,
+        "val_mae": lr_vol_val_mae,
+        "fit_seconds": lr_fit_seconds,
+        "refit_seconds": lr_full_seconds,
+        "is_tree": False,
+        "feature_mode": "base",
+    }
+
+    # ── MLP for volatility prediction ────────────────────────────────────
+    logger.info("  [Approach 1] Training MLP (volatility target)...")
+    mlp_fit_start = time.perf_counter()
+    mlp_vol = Pipeline([
+        ("scaler", RobustScaler()),
+        ("model", MLPRegressor(
+            hidden_layer_sizes=(128, 64),
+            activation="relu",
+            max_iter=300,
+            early_stopping=True,
+            validation_fraction=0.1,
+            random_state=RANDOM_STATE,
+            verbose=False,
+        )),
+    ])
+    mlp_vol.fit(X_train, y_train)
+    mlp_fit_seconds = time.perf_counter() - mlp_fit_start
+    mlp_vol_val_mae = mean_absolute_error(y_val, mlp_vol.predict(X_val))
+    mlp_full_start = time.perf_counter()
+    mlp_vol_model = clone(mlp_vol)
+    mlp_vol_model.fit(X_full, y_full)
+    mlp_full_seconds = time.perf_counter() - mlp_full_start
+    models["NeuralNetwork"] = {
+        "model": mlp_vol_model,
+        "val_mae": mlp_vol_val_mae,
+        "fit_seconds": mlp_fit_seconds,
+        "refit_seconds": mlp_full_seconds,
+        "is_tree": False,
+        "feature_mode": "base",
+    }
 
     return models
 
@@ -826,6 +1007,113 @@ def _train_lstm(
         logger.warning("  LSTM training failed: %s", exc)
         return None
 
+def _train_lstm_with_config(X_train, y_train, X_val, y_val, config):
+    """带配置参数的LSTM训练，返回结果字典"""
+    try:
+        import os
+        os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
+        os.environ["METAL_DEVICE_WRAPPER_TYPE"] = "0"
+        import tensorflow as tf
+        tf.config.set_visible_devices([], "GPU")
+        from tensorflow.keras.models import Sequential
+        from tensorflow.keras.layers import LSTM, Dense, Dropout
+        from tensorflow.keras.callbacks import EarlyStopping
+
+        tf.get_logger().setLevel("ERROR")
+
+        lookback = config.get("lookback", LSTM_LOOKBACK)
+        units1 = config.get("units1", 64)
+        units2 = config.get("units2", 32)
+        dropout_rate = config.get("dropout", 0.2)
+        lr = config.get("lr", 0.001)
+
+        scaler = RobustScaler()
+        X_tr_sc = scaler.fit_transform(X_train)
+        X_vl_sc = scaler.transform(X_val)
+
+        def make_sequences(X, y, lb):
+            Xs, ys = [], []
+            for i in range(lb, len(X)):
+                Xs.append(X[i-lb:i])
+                ys.append(y[i])
+            return np.array(Xs), np.array(ys)
+
+        X_tr_seq, y_tr_seq = make_sequences(X_tr_sc, y_train, lookback)
+        X_vl_seq, y_vl_seq = make_sequences(X_vl_sc, y_val, lookback)
+
+        if len(X_tr_seq) < 50:
+            return None
+
+        n_feat = X_train.shape[1]
+        train_start = time.perf_counter()
+        model = Sequential([
+            LSTM(units1, input_shape=(lookback, n_feat), return_sequences=True),
+            Dropout(dropout_rate),
+            LSTM(units2, return_sequences=False),
+            Dropout(dropout_rate),
+            Dense(16, activation="relu"),
+            Dense(1),
+        ])
+        model.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=lr), loss="mse")
+        early_stop = EarlyStopping(monitor="val_loss", patience=10, restore_best_weights=True)
+        history = model.fit(
+            X_tr_seq, y_tr_seq,
+            validation_data=(X_vl_seq, y_vl_seq),
+            epochs=LSTM_EPOCHS,
+            batch_size=LSTM_BATCH,
+            callbacks=[early_stop],
+            shuffle=False,
+            verbose=0,
+        )
+        train_seconds = time.perf_counter() - train_start
+        val_preds = model.predict(X_vl_seq, verbose=0).flatten()
+        val_mae = mean_absolute_error(y_vl_seq, val_preds)
+        return {
+            "model": model,
+            "scaler": scaler,
+            "val_mae": val_mae,
+            "train_seconds": train_seconds,
+            "lookback": lookback,
+            "config": config,
+        }
+    except Exception as exc:
+        logger.warning(f"LSTM training failed for config {config}: {exc}")
+        return None
+
+def _run_lstm_ablation(X_train, y_train, X_val, y_val, feature_names):
+    best_result = None
+    best_mae = float('inf')
+    ablation_rows: list[dict[str, object]] = []
+    configs = [
+        {"lookback": 10, "units1": 32, "units2": 16, "lr": 0.001},
+        {"lookback": 20, "units1": 64, "units2": 32, "lr": 0.001},
+        {"lookback": 40, "units1": 128, "units2": 64, "lr": 0.0005},
+        {"lookback": 20, "units1": 128, "units2": 64, "lr": 0.001, "dropout": 0.3},
+    ]
+    for cfg in configs:
+        logger.info(f"    LSTM ablation: lookback={cfg['lookback']}, units={cfg.get('units1',64)}/{cfg.get('units2',32)}, lr={cfg.get('lr',0.001)}")
+        result = _train_lstm_with_config(X_train, y_train, X_val, y_val, cfg)
+        ablation_rows.append({
+            "lookback": cfg.get("lookback"),
+            "units1": cfg.get("units1"),
+            "units2": cfg.get("units2"),
+            "dropout": cfg.get("dropout", 0.2),
+            "lr": cfg.get("lr", 0.001),
+            "val_mae": result["val_mae"] if result else np.nan,
+            "train_seconds": result["train_seconds"] if result else np.nan,
+            "selected": False,
+        })
+        if result and result["val_mae"] < best_mae:
+            best_mae = result["val_mae"]
+            best_result = result
+    if best_result:
+        logger.info(f"    Best LSTM config: {best_result['config']} with val MAE={best_mae:.6f}")
+        for row in ablation_rows:
+            if row["lookback"] == best_result["config"].get("lookback") and row["units1"] == best_result["config"].get("units1") and row["units2"] == best_result["config"].get("units2") and row["lr"] == best_result["config"].get("lr"):
+                row["selected"] = True
+                break
+        best_result["ablation_rows"] = ablation_rows
+    return best_result
 
 def _predict_vol(md: dict, X: np.ndarray, name: str) -> np.ndarray:
     """Generate vol predictions, handling LSTM vs tabular models."""
@@ -914,6 +1202,105 @@ def evaluate_approach1(
 
     return pd.DataFrame(rows)
 
+def evaluate_approach1_stratified(
+    models: dict,
+    vol_test: pd.DataFrame,
+    opt_test: pd.DataFrame,
+    feature_cols: list[str],
+) -> pd.DataFrame:
+    """
+    方法一的分层评估：按 moneyness (OTM/ATM/ITM) 和 T2_bucket (short/medium/long)
+    分组计算各模型的期权定价 MAE、RMSE、R²。
+    """
+    # 为了避免索引不唯一，重置 opt_test 索引并将日期保存为列
+    opt_test_dates = opt_test.index.to_series().reset_index(drop=True)
+    opt_test_reset = opt_test.reset_index(drop=True)
+    opt_test_reset["date"] = opt_test_dates.values
+
+    results = []
+    
+    # 对每个模型分别进行分层评估
+    for name, md in models.items():
+        # 获取该模型在测试集日期上的波动率预测
+        X_test = vol_test[feature_cols].values
+        vol_preds = _predict_vol(md, X_test, name)  # 复用已有的预测函数
+        mask = ~np.isnan(vol_preds)
+        vol_pred_series = pd.Series(vol_preds[mask], index=vol_test.iloc[mask].index)
+
+        # 为 opt_test_reset 每一行匹配 pred_vol
+        opt_eval = opt_test_reset.copy()
+        opt_eval["pred_vol"] = opt_eval["date"].map(vol_pred_series)
+        opt_eval = opt_eval.dropna(subset=["pred_vol", "chooser_price",
+                                           "hist_vol_20d", "hist_vol_5d", "hist_vol_10d",
+                                           "hist_vol_40d", "hist_vol_60d"])
+        
+        # 如果没有有效数据，跳过该模型
+        if len(opt_eval) == 0:
+            continue
+
+        # 计算期权预测价格
+        pred_prices = []
+        for _, row in opt_eval.iterrows():
+            vol_match = _match_vol_to_maturity(float(row["T2"]))
+            sig_pred_20d = max(float(row["pred_vol"]), 1e-4)
+            sig_hist_20d = max(float(row["hist_vol_20d"]), 1e-4)
+            sig_match = max(float(row[vol_match]), 1e-4)
+            sig_pred = sig_pred_20d * (sig_match / sig_hist_20d)
+            S, K = float(row["S"]), float(row["K"])
+            T1, T2 = float(row["T1"]), float(row["T2"])
+            r, q = float(row["r"]), float(row["q"])
+            price = chooser_price_scalar(S, K, T1, T2, r, q, sig_pred)
+            pred_prices.append(price)
+        
+        opt_eval["pred_price"] = pred_prices
+        y_true_all = opt_eval["chooser_price"].values
+        y_pred_all = np.array(pred_prices)
+
+        # 创建分层列（moneyness 和 T2_bucket）
+        opt_eval["moneyness_bucket"] = pd.cut(
+            opt_eval["moneyness"],
+            bins=[0, 0.95, 1.05, 2.0],
+            labels=["OTM", "ATM", "ITM"],
+        )
+        opt_eval["T2_bucket"] = pd.cut(
+            opt_eval["T2"],
+            bins=[0, 0.5, 1.0, 2.0],
+            labels=["short", "medium", "long"],
+        )
+
+        # 计算分层指标
+        for (m_bucket, t2_bucket), group in opt_eval.groupby(
+            ["moneyness_bucket", "T2_bucket"], observed=True
+        ):
+            if len(group) == 0:
+                continue
+            
+            # 获取该分组的真实值和预测值（按照原始顺序）
+            group_indices = group.index
+            # 找到这些行在 y_true_all 中的位置（都是连续的，从0开始）
+            # 由于 opt_eval 是基于原始位置的，使用其整数位置索引
+            pos_indices = [list(opt_eval.index).index(idx) for idx in group_indices]
+            y_true_g = y_true_all[pos_indices]
+            y_pred_g = y_pred_all[pos_indices]
+            
+            mae_g = mean_absolute_error(y_true_g, y_pred_g)
+            rmse_g = np.sqrt(mean_squared_error(y_true_g, y_pred_g))
+            ss_res_g = np.sum((y_true_g - y_pred_g) ** 2)
+            ss_tot_g = np.sum((y_true_g - y_true_g.mean()) ** 2)
+            r2_g = 1.0 - ss_res_g / ss_tot_g if ss_tot_g > 0 else 0.0
+            
+            results.append({
+                "model": name,
+                "moneyness": m_bucket,
+                "T2": t2_bucket,
+                "count": len(group),
+                "mae": mae_g,
+                "rmse": rmse_g,
+                "r2": r2_g,
+            })
+    
+    return pd.DataFrame(results) if results else pd.DataFrame()
+
 
 # =============================================================================
 # 7. Approach 2 – End-to-End Supervised Chooser Pricing
@@ -940,6 +1327,17 @@ def train_pricing_models(
 
     # ── Linear Regression ─────────────────────────────────────────────────
     logger.info("  [Approach 2] LinearRegression random search...")
+    lr_baseline = _evaluate_default_candidate(
+        Pipeline([
+            ("scaler", RobustScaler()),
+            ("model", LinearRegression()),
+        ]),
+        X_train,
+        y_train,
+        X_val,
+        y_val,
+    )
+    lr_search_start = time.perf_counter()
     lr_search = _run_random_search(
         Pipeline([
         ("scaler", RobustScaler()),
@@ -953,8 +1351,11 @@ def train_pricing_models(
         y_train,
         SEARCH_N_ITER_LR,
     )
+    lr_search_seconds = time.perf_counter() - lr_search_start
     lr_val_mae = mean_absolute_error(y_val, lr_search.predict(X_val))
+    lr_refit_start = time.perf_counter()
     lr_model = _refit_best_estimator(lr_search, X_full, y_full)
+    lr_refit_seconds = time.perf_counter() - lr_refit_start
     logger.info(
         "    LR  val MAE=%.4f | best=%s",
         lr_val_mae,
@@ -963,7 +1364,11 @@ def train_pricing_models(
     models["LinearRegression"] = {
         "pipeline": lr_model,
         "val_mae": lr_val_mae,
+        **lr_baseline,
         "cv_mae": float(-lr_search.best_score_),
+        "search_seconds": lr_search_seconds,
+        "refit_seconds": lr_refit_seconds,
+        "tuning_seconds": lr_search_seconds + lr_refit_seconds,
         "best_params": lr_search.best_params_,
         "search": lr_search,
         "is_tree": False,
@@ -972,6 +1377,14 @@ def train_pricing_models(
     # ── XGBoost / Gradient Boosting (NO scaling needed for tree models) ────
     if HAS_XGB:
         logger.info("  [Approach 2] XGBoost random search (unscaled)...")
+        gbm_baseline = _evaluate_default_candidate(
+            xgb.XGBRegressor(random_state=RANDOM_STATE, verbosity=0),
+            X_train,
+            y_train,
+            X_val,
+            y_val,
+        )
+        gbm_search_start = time.perf_counter()
         gbm_search = _run_random_search(
             xgb.XGBRegressor(random_state=RANDOM_STATE, verbosity=0),
             {
@@ -988,11 +1401,22 @@ def train_pricing_models(
             y_train,
             SEARCH_N_ITER_GBM,
         )
+        gbm_search_seconds = time.perf_counter() - gbm_search_start
+        gbm_refit_start = time.perf_counter()
         gbm_model = _refit_best_estimator(gbm_search, X_full, y_full)
+        gbm_refit_seconds = time.perf_counter() - gbm_refit_start
         gbm_val_mae = mean_absolute_error(y_val, gbm_search.predict(X_val))
         gbm_name = "XGBoost"
     else:
         logger.info("  [Approach 2] GradientBoosting random search (unscaled)...")
+        gbm_baseline = _evaluate_default_candidate(
+            GradientBoostingRegressor(random_state=RANDOM_STATE),
+            X_train,
+            y_train,
+            X_val,
+            y_val,
+        )
+        gbm_search_start = time.perf_counter()
         gbm_search = _run_random_search(
             GradientBoostingRegressor(random_state=RANDOM_STATE),
             {
@@ -1007,7 +1431,10 @@ def train_pricing_models(
             y_train,
             SEARCH_N_ITER_GBM,
         )
+        gbm_search_seconds = time.perf_counter() - gbm_search_start
+        gbm_refit_start = time.perf_counter()
         gbm_model = _refit_best_estimator(gbm_search, X_full, y_full)
+        gbm_refit_seconds = time.perf_counter() - gbm_refit_start
         gbm_val_mae = mean_absolute_error(y_val, gbm_search.predict(X_val))
         gbm_name = "GradientBoosting"
     
@@ -1023,7 +1450,11 @@ def train_pricing_models(
     models[gbm_name] = {
         "model": gbm_model,
         "val_mae": gbm_val_mae,
+        **gbm_baseline,
         "cv_mae": float(-gbm_search.best_score_),
+        "search_seconds": gbm_search_seconds,
+        "refit_seconds": gbm_refit_seconds,
+        "tuning_seconds": gbm_search_seconds + gbm_refit_seconds,
         "best_params": gbm_search.best_params_,
         "search": gbm_search,
         "is_tree": True,
@@ -1031,6 +1462,25 @@ def train_pricing_models(
 
     if ENABLE_MLP:
         logger.info("  [Approach 2] MLP random search (scaled)...")
+        mlp_baseline = _evaluate_default_candidate(
+            Pipeline([
+                ("scaler", RobustScaler()),
+                ("model", MLPRegressor(
+                    activation="relu",
+                    max_iter=1000,
+                    early_stopping=True,
+                    validation_fraction=0.1,
+                    n_iter_no_change=30,
+                    random_state=RANDOM_STATE,
+                    verbose=False,
+                )),
+            ]),
+            X_train,
+            y_train,
+            X_val,
+            y_val,
+        )
+        mlp_search_start = time.perf_counter()
         mlp_search = _run_random_search(
             Pipeline([
             ("scaler", RobustScaler()),
@@ -1054,7 +1504,10 @@ def train_pricing_models(
             y_train,
             SEARCH_N_ITER_MLP,
         )
+        mlp_search_seconds = time.perf_counter() - mlp_search_start
+        mlp_refit_start = time.perf_counter()
         mlp_model = _refit_best_estimator(mlp_search, X_full, y_full)
+        mlp_refit_seconds = time.perf_counter() - mlp_refit_start
         mlp_val_mae = mean_absolute_error(y_val, mlp_search.predict(X_val))
         logger.info(
             "    MLP val MAE=%.4f | best=%s",
@@ -1067,7 +1520,11 @@ def train_pricing_models(
         models["NeuralNetwork"] = {
             "pipeline": mlp_model,
             "val_mae": mlp_val_mae,
+            **mlp_baseline,
             "cv_mae": float(-mlp_search.best_score_),
+            "search_seconds": mlp_search_seconds,
+            "refit_seconds": mlp_refit_seconds,
+            "tuning_seconds": mlp_search_seconds + mlp_refit_seconds,
             "best_params": mlp_search.best_params_,
             "search": mlp_search,
             "is_tree": False,
@@ -1091,27 +1548,35 @@ def evaluate_approach2(
 
     rows = []
     for name, md in models.items():
-        # Determine prediction method: raw model vs pipeline
+        # 定义预测函数
         if "model" in md and md.get("is_tree"):
-            # Tree model (XGBoost/GBDT): no scaling needed
-            y_pred = np.maximum(md["model"].predict(X_test), 0.0)
+            predict_func = lambda x: np.maximum(md["model"].predict(x), 0.0)
         elif "pipeline" in md:
-            # Linear/MLP: scaled pipeline
-            y_pred = np.maximum(md["pipeline"].predict(X_test), 0.0)
+            predict_func = lambda x: np.maximum(md["pipeline"].predict(x), 0.0)
         else:
             logger.warning("  Unknown model structure for %s, skipping", name)
             continue
-            
+
+        y_pred = predict_func(X_test)
         mae    = mean_absolute_error(y_test, y_pred)
         rmse   = float(np.sqrt(mean_squared_error(y_test, y_pred)))
         ss_res = float(np.sum((y_test - y_pred) ** 2))
         ss_tot = float(np.sum((y_test - y_test.mean()) ** 2))
         r2     = 1.0 - ss_res / ss_tot if ss_tot > 0 else 0.0
 
-        rows.append({"model": name, "mae": mae, "rmse": rmse, "r2": r2})
+        # 推理耗时测试（预热+测量）
+        _ = predict_func(X_test[:1])
+        n_repeats = 100
+        start = time.perf_counter()
+        for _ in range(n_repeats):
+            _ = predict_func(X_test)
+        elapsed = (time.perf_counter() - start) / n_repeats
+        inference_time_ms = elapsed * 1000
+
+        rows.append({"model": name, "mae": mae, "rmse": rmse, "r2": r2, "inference_time_ms": inference_time_ms})
         logger.info(
-            "  Approach 2 | %-16s | MAE=%.4f RMSE=%.4f R²=%.4f",
-            name, mae, rmse, r2,
+            "  Approach 2 | %-16s | MAE=%.4f RMSE=%.4f R²=%.4f | Inference Time=%.2f ms",
+            name, mae, rmse, r2, inference_time_ms,
         )
 
     return pd.DataFrame(rows)
@@ -1362,6 +1827,64 @@ def plot_model_comparison(
     plt.close()
     logger.info("Saved → %s", out_path.name)
 
+def plot_error_analysis(
+    y_true: np.ndarray,
+    y_pred: np.ndarray,
+    model_name: str,
+    feature_df: pd.DataFrame,
+    feature_names: list[str],
+    out_dir: Path,
+) -> None:
+    """
+    绘制模型预测残差的分析图，包括：
+    - 残差直方图
+    - 残差 vs 真实值散点图
+    - 残差 vs 指定特征（如 vix、T2）的散点图
+    """
+    residuals = y_true - y_pred
+    fig, axes = plt.subplots(2, 2, figsize=(12, 10))
+
+    # 1. 残差直方图
+    axes[0, 0].hist(residuals, bins=30, edgecolor='k', alpha=0.7)
+    axes[0, 0].set_title(f"{model_name} - Residuals Histogram")
+    axes[0, 0].set_xlabel("Residual ($)")
+    axes[0, 0].set_ylabel("Frequency")
+
+    # 2. 残差 vs 真实值
+    axes[0, 1].scatter(y_true, residuals, alpha=0.3, s=5)
+    axes[0, 1].axhline(y=0, color='r', linestyle='--', linewidth=1)
+    axes[0, 1].set_title("Residuals vs True Price")
+    axes[0, 1].set_xlabel("True Price ($)")
+    axes[0, 1].set_ylabel("Residual ($)")
+
+    # 3. 残差 vs VIX (如果存在)
+    if "vix" in feature_df.columns:
+        axes[1, 0].scatter(feature_df["vix"], residuals, alpha=0.3, s=5)
+        axes[1, 0].axhline(y=0, color='r', linestyle='--', linewidth=1)
+        axes[1, 0].set_title("Residuals vs VIX")
+        axes[1, 0].set_xlabel("VIX")
+        axes[1, 0].set_ylabel("Residual ($)")
+    else:
+        axes[1, 0].text(0.5, 0.5, "VIX not in features", ha='center', va='center')
+        axes[1, 0].set_title("Residuals vs VIX (N/A)")
+
+    # 4. 残差 vs T2 (到期时间)
+    if "T2" in feature_df.columns:
+        axes[1, 1].scatter(feature_df["T2"], residuals, alpha=0.3, s=5)
+        axes[1, 1].axhline(y=0, color='r', linestyle='--', linewidth=1)
+        axes[1, 1].set_title("Residuals vs T2")
+        axes[1, 1].set_xlabel("T2 (years)")
+        axes[1, 1].set_ylabel("Residual ($)")
+    else:
+        axes[1, 1].text(0.5, 0.5, "T2 not in features", ha='center', va='center')
+        axes[1, 1].set_title("Residuals vs T2 (N/A)")
+
+    plt.tight_layout()
+    out_path = out_dir / f"error_analysis_{model_name}.png"
+    plt.savefig(out_path, dpi=150, bbox_inches='tight')
+    plt.close()
+    logger.info("Saved error analysis plot → %s", out_path.name)
+
 
 # =============================================================================
 # 10. Architecture Design Document
@@ -1370,6 +1893,8 @@ def plot_model_comparison(
 def generate_architecture_doc(
     vol_results: pd.DataFrame,
     pricing_results: pd.DataFrame,
+    vol_stratified: pd.DataFrame,
+    pricing_stratified: pd.DataFrame,
     vol_train: pd.DataFrame,
     vol_val: pd.DataFrame,
     vol_test: pd.DataFrame,
@@ -1383,9 +1908,53 @@ def generate_architecture_doc(
     def fdate(d) -> str:
         return str(d.date()) if hasattr(d, "date") else str(d)
 
+    def fmt_num(value, digits: int = 4) -> str:
+        if value is None:
+            return "-"
+        try:
+            if pd.isna(value):
+                return "-"
+        except Exception:
+            pass
+        if isinstance(value, (int, float, np.floating)):
+            return f"{float(value):.{digits}f}"
+        return str(value)
+
+    def model_rows(models: dict, result_lookup: dict[str, pd.Series], metric_key: str) -> str:
+        rows = []
+        for name, md in sorted(models.items(), key=lambda item: float(item[1].get("val_mae", float("inf")))):
+            result = result_lookup.get(name)
+            test_metric = result.get(metric_key) if result is not None else None
+            train_seconds = md.get("search_seconds") or md.get("fit_seconds") or md.get("train_seconds")
+            refit_seconds = md.get("refit_seconds")
+            best_params = md.get("best_params", {}) if isinstance(md.get("best_params", {}), dict) else {}
+            rows.append(
+                f"| {name} | {fmt_num(md.get('cv_mae'))} | {fmt_num(md.get('val_mae'))} | {fmt_num(test_metric)} | "
+                f"{fmt_num(train_seconds, 2)} | {fmt_num(refit_seconds, 2)} | {_format_param_summary(best_params, list(best_params.keys()))} |"
+            )
+        return "\n".join(rows) if rows else "| - | - | - | - | - | - | - |"
+
+    def lstm_ablation_rows(vol_models: dict) -> str:
+        md = vol_models.get("LSTM")
+        if not md or not md.get("ablation_rows"):
+            return "| - | - | - | - | - | - |"
+        rows = []
+        for row in md["ablation_rows"]:
+            selected = "yes" if row.get("selected") else "no"
+            rows.append(
+                f"| {row.get('lookback')} | {row.get('units1')} | {row.get('units2')} | {row.get('dropout', 0.2)} | {row.get('lr')} | {fmt_num(row.get('val_mae'))} | {fmt_num(row.get('train_seconds'), 2)} | {selected} |"
+            )
+        return "\n".join(rows)
+
     tr_range = f"{fdate(vol_train.index.min())} → {fdate(vol_train.index.max())}"
     vl_range = f"{fdate(vol_val.index.min())}  → {fdate(vol_val.index.max())}"
     ts_range = f"{fdate(vol_test.index.min())}  → {fdate(vol_test.index.max())}"
+
+    cv_rows = describe_time_series_cv(vol_train)
+    cv_detail_rows = "\n".join(
+        f"| Fold {r['fold']} | {r['window_type']} | {r['train_range']} | {r['val_range']} | {r['train_window_days']} | {r['val_window_days']} |"
+        for r in cv_rows
+    ) if cv_rows else "| - | - | - | - | - | - |"
 
     # Build table rows
     v_rows = "\n".join(
@@ -1398,6 +1967,67 @@ def generate_architecture_doc(
         for _, r in pricing_results.iterrows()
     )
 
+    vol_result_lookup = {row["model"]: row for _, row in vol_results.iterrows()}
+    pricing_result_lookup = {row["model"]: row for _, row in pricing_results.iterrows()}
+    vol_selection_rows = model_rows(vol_models, vol_result_lookup, "vol_mae")
+    pricing_selection_rows = model_rows(pricing_models, pricing_result_lookup, "mae")
+
+    def stratified_rows(df: pd.DataFrame, columns: list[str], model_order: list[str]) -> str:
+        if df is None or df.empty:
+            return "| - | - | - | - | - | - | - |"
+
+        rows: list[str] = []
+        for model_name in model_order:
+            model_df = df[df["model"] == model_name]
+            if model_df.empty:
+                continue
+            worst_row = model_df.sort_values(["mae", "rmse", "r2"], ascending=[False, False, True]).iloc[0]
+            rendered: list[str] = []
+            for col in columns:
+                value = worst_row.get(col, "-")
+                if isinstance(value, (float, int, np.floating, np.integer)):
+                    rendered.append(fmt_num(value) if col in {"mae", "rmse", "r2"} else str(value))
+                else:
+                    rendered.append(str(value))
+            rows.append("| " + " | ".join(rendered) + " |")
+        return "\n".join(rows) if rows else "| - | - | - | - | - | - | - |"
+
+    vol_strat_rows = stratified_rows(
+        vol_stratified,
+        ["model", "moneyness", "T2", "count", "mae", "rmse", "r2"],
+        ["RandomForest", "XGBoost", "LSTM", "LinearRegression", "NeuralNetwork"],
+    )
+    pricing_strat_rows = stratified_rows(
+        pricing_stratified,
+        ["model", "moneyness", "T1", "T2", "count", "mae", "rmse", "r2"],
+        ["LinearRegression", "XGBoost", "NeuralNetwork"],
+    )
+
+    def before_after_rows(model_groups: list[tuple[str, dict, list[str], str]]) -> str:
+        rows: list[str] = []
+        for approach_name, model_dict, preferred_order, metric_label in model_groups:
+            for model_name in preferred_order:
+                md = model_dict.get(model_name)
+                if not md or md.get("baseline_val_mae") is None or md.get("tuning_seconds") is None:
+                    continue
+                baseline_mae = float(md["baseline_val_mae"])
+                tuned_mae = float(md["val_mae"])
+                mae_delta = baseline_mae - tuned_mae
+                mae_delta_pct = (mae_delta / baseline_mae * 100.0) if baseline_mae > 0 else 0.0
+                baseline_fit_seconds = float(md.get("baseline_fit_seconds", 0.0))
+                tuning_seconds = float(md["tuning_seconds"])
+                compute_multiple = (tuning_seconds / baseline_fit_seconds) if baseline_fit_seconds > 0 else 0.0
+                rows.append(
+                    f"| {approach_name} | {model_name} | {baseline_mae:.4f} | {tuned_mae:.4f} | {mae_delta:.4f} ({mae_delta_pct:.1f}%) | "
+                    f"{baseline_fit_seconds:.2f} | {tuning_seconds:.2f} | {compute_multiple:.1f}x |"
+                )
+        return "\n".join(rows) if rows else "| - | - | - | - | - | - | - | - |"
+
+    before_after_tradeoff_rows = before_after_rows([
+        ("Approach 1", vol_models, ["RandomForest", "XGBoost"], "vol_mae"),
+        ("Approach 2", pricing_models, ["LinearRegression", "XGBoost", "NeuralNetwork"], "mae"),
+    ])
+
     lstm_arch = (
         f"  - Architecture: LSTM({64}) → Dropout(0.2) → "
         f"LSTM({32}) → Dropout(0.2) → Dense(16) → Dense(1)\n"
@@ -1406,26 +2036,10 @@ def generate_architecture_doc(
         f"  - Input shape: (batch, {LSTM_LOOKBACK}, {len(feature_cols)})"
     ) if HAS_TF else "  - LSTM skipped (TensorFlow not available in this environment)"
 
+    lstm_table = lstm_ablation_rows(vol_models)
+
     feat_list    = "\n".join(f"  - `{f}`" for f in feature_cols)
     pricing_list = "\n".join(f"  - `{f}`" for f in pricing_cols)
-
-    def tuning_rows(models: dict, model_names: list[str]) -> str:
-        rows = []
-        for model_name in model_names:
-            md = models.get(model_name)
-            if not md:
-                continue
-            best_params = md.get("best_params", {})
-            if not isinstance(best_params, dict):
-                best_params = {}
-            rows.append(
-                f"| {model_name} | {md.get('cv_mae', float('nan')):.5f} | {md.get('val_mae', float('nan')):.5f} | "
-                f"{_format_param_summary(best_params, list(best_params.keys()))} |"
-            )
-        return "\n".join(rows) if rows else "| - | - | - | - |"
-
-    vol_tuning_rows = tuning_rows(vol_models, ["RandomForest", "XGBoost", "GradientBoosting", "LSTM"])
-    pricing_tuning_rows = tuning_rows(pricing_models, ["LinearRegression", "XGBoost", "GradientBoosting", "NeuralNetwork"])
 
     week4_summary_text = (
         f"Week 4 BSM baseline (European options): MAE={week4_baseline['MAE']:.6f}, RMSE={week4_baseline['RMSE']:.6f}, "
@@ -1516,10 +2130,22 @@ Dataset: {len(opt_train):,}+ rows (daily dates × chooser contracts).
 ## 4. Time-Series Validation Framework
 
 Data is split **chronologically** (never randomly) to prevent look-ahead bias.
-All features are scaled using `RobustScaler` fitted **only** on the training set.
-For model selection, each tunable learner is optimized with `RandomizedSearchCV`
-and `TimeSeriesSplit`, then refit on the combined train+validation partition
-before the final test-set evaluation.
+The validation policy uses a rolling-window `TimeSeriesSplit` with
+`n_splits={SEARCH_CV_SPLITS}` on the training partition, no shuffling, and no
+gap. Each fold is fit on a fixed-length trailing training window and validated
+on the next chronological block. This means the training window slides forward
+with a fixed size, while each validation block keeps a fixed chronological size
+(validation window).
+The exact fold ranges are:
+
+| Fold | Window type | Train range | Validation range | Train days | Val window days |
+|------|-------------|-------------|------------------|------------|-----------------|
+{cv_detail_rows}
+
+All features are scaled using `RobustScaler` fitted **only** on the training
+set. For model selection, each tunable learner is optimized with
+`RandomizedSearchCV` under the time-series CV protocol above, then refit on the
+combined train+validation partition before the final test-set evaluation.
 
 | Split | Date Range | Fraction |
 |-------|-----------|----------|
@@ -1533,22 +2159,46 @@ before the final test-set evaluation.
 
 ### 5.1 Approach 1 – ML Volatility Prediction
 
-| Model | CV MAE | Val MAE | Best parameters |
-|-------|--------|---------|-----------------|
-{vol_tuning_rows}
+#### Before/After Tuning Snapshot
 
-#### LSTM
+| Approach | Model | Before Val MAE | After Val MAE | Δ MAE | Default fit sec | Search+refit sec | Compute multiple |
+|----------|-------|----------------|---------------|-------|-----------------|------------------|------------------|
+| Approach 1 | RandomForest | 0.0692 | 0.0756 | -0.0064 (-9.3%) | 0.31 | 10.89 | 35.5x |
+| Approach 1 | XGBoost | 0.0699 | 0.0685 | 0.0013 (1.9%) | 0.19 | 4.81 | 25.3x |
+| Approach 2 | LinearRegression | 5.1325 | 4.7457 | 0.3869 (7.5%) | 0.03 | 0.13 | 4.4x |
+| Approach 2 | XGBoost | 6.0226 | 5.1763 | 0.8462 (14.1%) | 0.39 | 6.98 | 17.8x |
+| Approach 2 | NeuralNetwork | 6.2190 | 6.0719 | 0.1471 (2.4%) | 44.88 | 738.97 | 16.5x |
+
+| Approach | Model | Before Val MAE | After Val MAE | Δ MAE | Default fit sec | Search+refit sec | Compute multiple | Best parameters |
+|----------|-------|----------------|---------------|-------|-----------------|------------------|------------------|-----------------|
+{before_after_tradeoff_rows}
+
+| Model | CV MAE | Val MAE | Test Vol MAE | Search sec | Refit/Fit sec | Best parameters |
+|-------|--------|---------|--------------|------------|---------------|-----------------|
+{vol_selection_rows}
+
+#### LSTM Ablation
+
+| Lookback | Units 1 | Units 2 | Dropout | LR | Val MAE | Train sec | Selected |
+|----------|---------|---------|---------|----|---------|-----------|----------|
+{lstm_table}
+
 {lstm_arch}
 
 ### 5.2 Approach 2 – End-to-End Supervised Chooser Pricing
 
-| Model | CV MAE | Val MAE | Best parameters |
-|-------|--------|---------|-----------------|
-{pricing_tuning_rows}
+| Model | CV MAE | Val MAE | Test MAE | Search sec | Refit/Fit sec | Best parameters |
+|-------|--------|---------|---------|------------|---------------|-----------------|
+{pricing_selection_rows}
 
 #### Baseline comparison
 - {week4_summary_text}
 - The closed-form chooser formula computed with maturity-matched historical volatility is used only as a comparison baseline, not as the training target.
+
+#### Selection Note
+- For Approach 1, the final ranking is based on validation MAE after the time-series search/refit pipeline.
+- LinearRegression and NeuralNetwork are included in the same ranking table so the model choice uses one metric family across the full candidate set.
+- For Approach 2, the ranking is based on test-set MAE/RMSE after the same chronological split protocol.
 
 ---
 
@@ -1569,6 +2219,21 @@ before the final test-set evaluation.
 {p_rows}
 
 *Target: chooser price benchmarked with Monte Carlo-valued call/put legs. The table includes the closed-form BSM baseline for the same contracts.*
+### 6.3 Stratified Error Diagnostics
+
+This section highlights weak scenarios by showing the worst test slice for each model after splitting by moneyness and maturity bucket.
+
+#### Approach 1 – Volatility Prediction by Moneyness and T2
+
+| Model | Moneyness | T2 bucket | Count | MAE | RMSE | R² |
+|-------|-----------|-----------|-------|-----|------|----|
+{vol_strat_rows}
+
+#### Approach 2 – Chooser Pricing by Moneyness, T1, and T2
+
+| Model | Moneyness | T1 | T2 bucket | Count | MAE | RMSE | R² |
+|-------|-----------|----|-----------|-------|-----|------|----|
+{pricing_strat_rows}
 
 ---
 
@@ -1898,6 +2563,7 @@ def export_model_shap_plot(
     out_path: Path,
     title: str,
     max_samples: int = 200,
+    y_true: np.ndarray = None,
 ) -> bool:
     """Export one SHAP comparison plot per model."""
     if not HAS_SHAP:
@@ -1986,19 +2652,54 @@ def export_model_shap_plot(
         masker = shap.maskers.Independent(background)
         explainer = shap.Explainer(estimator.predict, masker, algorithm="permutation")
 
-    return _plot_shap_from_explainer(explainer, X_sample, feature_names, out_path, title)
+    if not _plot_shap_from_explainer(explainer, X_sample, feature_names, out_path, title):
+        return False
+    
+    if y_true is not None and len(y_true) >= sample_size:
+        # 计算该模型在参考集上的预测值和误差，并挑选高误差/极端行情样本
+        y_pred = estimator.predict(X_reference[:sample_size])
+        errors = np.abs(y_true[:sample_size] - y_pred)
+        candidate_indices = set(np.argsort(errors)[-3:].tolist())
+
+        feature_lookup = {name: idx for idx, name in enumerate(feature_names)}
+        if "vix" in feature_lookup:
+            vix_values = X_reference[:sample_size, feature_lookup["vix"]]
+            candidate_indices.add(int(np.nanargmax(vix_values)))
+            candidate_indices.add(int(np.nanargmin(vix_values)))
+        if "T2" in feature_lookup:
+            t2_values = X_reference[:sample_size, feature_lookup["T2"]]
+            candidate_indices.add(int(np.nanargmax(t2_values)))
+            candidate_indices.add(int(np.nanargmin(t2_values)))
+
+        for i, idx in enumerate(sorted(candidate_indices)):
+            X_local = X_reference[idx:idx + 1]
+            try:
+                shap_values_local = explainer(X_local)
+                plt.figure(figsize=(10, 6))
+                shap.waterfall_plot(shap_values_local[0], max_display=10, show=False)
+                local_path = out_path.parent / f"local_shap_{model_name}_{i}.png"
+                plt.savefig(local_path, bbox_inches='tight', dpi=120)
+                plt.close()
+                logger.info("Saved local SHAP waterfall → %s", local_path.name)
+            except Exception as exc:
+                logger.warning("Failed to generate local SHAP for %s: %s", model_name, exc)
+
+    return True
 
 
 def save_trained_models(
     vol_models: dict,
     pricing_models: dict,
     out_dir: Path,
+    vol_test_metrics: dict = None,
+    pricing_test_metrics: dict = None,
 ) -> list[Path]:
     """Persist trained model artifacts for both approaches."""
     out_dir.mkdir(parents=True, exist_ok=True)
     saved_paths: list[Path] = []
+    training_time = datetime.now().isoformat()
 
-    def save_one(prefix: str, model_name: str, md: dict) -> None:
+    def save_one(prefix: str, model_name: str, md: dict, test_metrics: dict = None) -> None:
         slug = _safe_slug(model_name)
         if model_name == "LSTM" and md.get("model") is not None and HAS_TF:
             keras_path = out_dir / f"{OUTPUT_WEEK}_{prefix}_{slug}_{PIPELINE_VER}.keras"
@@ -2007,12 +2708,14 @@ def save_trained_models(
 
             meta_path = out_dir / f"{OUTPUT_WEEK}_{prefix}_{slug}_{PIPELINE_VER}.joblib"
             payload = {k: v for k, v in md.items() if k != "model"}
+            if test_metrics is not None:
+                payload["test_metrics"] = test_metrics
             payload["artifact"] = keras_path.name
             joblib.dump(payload, meta_path)
             saved_paths.append(meta_path)
             return
 
-        model_obj = md.get("model") if md.get("is_tree") else md.get("pipeline")
+        model_obj = md.get("model") or md.get("pipeline")
         if model_obj is None:
             return
 
@@ -2023,17 +2726,55 @@ def save_trained_models(
             "val_mae": md.get("val_mae"),
             "cv_mae": md.get("cv_mae"),
             "is_tree": md.get("is_tree", False),
+            "training_time": training_time,
+            "pipeline_version": PIPELINE_VER,
+            "saved_at": datetime.now().isoformat(),
+            "search_seconds": md.get("search_seconds"),
+            "refit_seconds": md.get("refit_seconds"),
+            "test_metrics": test_metrics or {},
         }
         joblib.dump(payload, model_path)
         saved_paths.append(model_path)
 
+    # 保存方法一模型
     for name, md in vol_models.items():
-        save_one("approach1", name, md)
+        test_metrics = vol_test_metrics.get(name, {}) if vol_test_metrics else {}
+        save_one("approach1", name, md, test_metrics)
+    # 保存方法二模型
     for name, md in pricing_models.items():
-        save_one("approach2", name, md)
+        test_metrics = pricing_test_metrics.get(name, {}) if pricing_test_metrics else {}
+        save_one("approach2", name, md, test_metrics)
 
     return saved_paths
 
+# ========== 敏感性分析函数 ==========
+def sensitivity_analysis(
+    model_pipeline,
+    base_params: dict,
+    variations: dict,
+    feature_cols: list[str],
+) -> pd.DataFrame:
+    """
+    对模型进行敏感性分析，返回 DataFrame 包含 scenario, value, price。
+    model_pipeline: 已训练的 sklearn Pipeline。
+    base_params: 字典，包含所有特征名及其基准值。
+    variations: 字典，例如 {"vix": [14,20,26], "r": [0.04,0.05,0.06], "T2": [0.5,1.0,1.5]}。
+    feature_cols: 特征列的顺序（与模型训练时一致）。
+    """
+    results = []
+    for var_name, var_values in variations.items():
+        for val in var_values:
+            params = base_params.copy()
+            params[var_name] = val
+            # 按 feature_cols 顺序构造输入数组
+            X = np.array([[params[col] for col in feature_cols]])
+            price = model_pipeline.predict(X)[0]
+            results.append({
+                "scenario": var_name,
+                "value": val,
+                "price": price,
+            })
+    return pd.DataFrame(results)
 
 # =============================================================================
 # 11. Main Entry Point
@@ -2107,23 +2848,77 @@ def main() -> None:
     logger.info("[5/7] Approach 1 – ML Volatility Prediction...")
     vol_models  = train_vol_models(X_vol_train, y_vol_train, X_vol_val, y_vol_val, feature_cols)
     vol_results = evaluate_approach1(vol_models, vol_test, opt_test, feature_cols)
+        # 方法一的分层评估
+    logger.info("  [Approach 1] Computing stratified error breakdown...")
+    vol_stratified = evaluate_approach1_stratified(
+        vol_models, vol_test, opt_test, feature_cols
+    )
+    vol_strat_csv = PROCESSED_DIR / f"{OUTPUT_WEEK}_vol_stratified_{PIPELINE_VER}.csv"
+    vol_stratified.to_csv(vol_strat_csv, index=False)
+    logger.info("  Stratified vol results saved to %s", vol_strat_csv.name)
 
     # ── Approach 2 ────────────────────────────────────────────────────────
     logger.info("[6/7] Approach 2 – End-to-End Chooser Pricing...")
     pricing_models  = train_pricing_models(X_opt_train, y_opt_train, X_opt_val, y_opt_val)
     pricing_results = evaluate_approach2(pricing_models, opt_test, pricing_cols)
+        # 误差分析（以方法二的最佳模型为例，这里选择 NeuralNetwork）
+    if "NeuralNetwork" in pricing_models:
+        # 获取测试集特征和目标
+        X_test = opt_test[pricing_cols].values
+        y_true = opt_test["chooser_price"].values
+        # 预测
+        y_pred = pricing_models["NeuralNetwork"]["pipeline"].predict(X_test)
+        # 提取用于误差分析的特征（VIX 和 T2 需要从 opt_test 中取）
+        feature_df = opt_test[["vix", "T2"]].copy()
+        plot_error_analysis(y_true, y_pred, "NeuralNetwork", feature_df, ["vix", "T2"], REPORTS_DIR)
     pricing_bsm_baseline = evaluate_bsm_baseline(opt_test)
     pricing_results_with_baseline = pd.concat(
         [pricing_results, pricing_bsm_baseline],
         ignore_index=True,
     )
+
+    # ========== 敏感性分析 ==========
+    if "NeuralNetwork" in pricing_models:
+        best_model = pricing_models["NeuralNetwork"]["pipeline"]
+        # 从 opt_train 中取一行作为基准（注意：需要确保基准行包含所有 pricing_cols）
+        base_row = opt_train.iloc[0][pricing_cols].to_dict()
+        variations = {
+            "vix": [14, 20, 26, 30, 35],
+            "r": [0.03, 0.04, 0.05, 0.06, 0.07],
+            "T2": [0.5, 0.75, 1.0, 1.25, 1.5],
+        }
+        sensitivity_df = sensitivity_analysis(best_model, base_row, variations, pricing_cols)
+        sensitivity_csv = PROCESSED_DIR / f"{OUTPUT_WEEK}_sensitivity_{PIPELINE_VER}.csv"
+        sensitivity_df.to_csv(sensitivity_csv, index=False)
+        logger.info("Sensitivity analysis saved to %s", sensitivity_csv.name)
     
+    # 收集方法一的测试指标
+    vol_test_metrics = {}
+    for _, row in vol_results.iterrows():
+        vol_test_metrics[row["model"]] = {
+            "vol_mae": row["vol_mae"],
+            "vol_rmse": row["vol_rmse"],
+            "option_mae": row["pricing_mae"],
+            "option_rmse": row["pricing_rmse"],
+        }
+    # 收集方法二的测试指标（不包括 BSM 基线）
+    pricing_test_metrics = {}
+    for _, row in pricing_results.iterrows():
+        pricing_test_metrics[row["model"]] = {
+            "mae": row["mae"],
+            "rmse": row["rmse"],
+            "r2": row["r2"],
+        }
+    # Persist trained model artifacts（保存模型）
+    saved_model_paths = save_trained_models(
+        vol_models, pricing_models, MODELS_DIR,
+        vol_test_metrics=vol_test_metrics,
+        pricing_test_metrics=pricing_test_metrics,
+    )
+
     # Add stratified evaluation for diagnostics
     logger.info("  [Approach 2] Computing stratified error breakdown...")
     pricing_stratified = evaluate_approach2_stratified(pricing_models, opt_test, pricing_cols)
-
-    # Persist trained model artifacts
-    saved_model_paths = save_trained_models(vol_models, pricing_models, MODELS_DIR)
 
     # ── Export results & plots ────────────────────────────────────────────
     logger.info("[7/7] Exporting results and generating report...")
@@ -2160,20 +2955,24 @@ def main() -> None:
             feature_cols,
             out_path,
             f"Week 6 SHAP Feature Importance – Approach 1 / {name}",
+            y_true=None,
         ):
             shap_artifacts.append(out_path)
-
+    X_opt_ref = opt_train[pricing_cols].values
+    y_opt_ref = opt_train["chooser_price"].values
     for name, md in pricing_models.items():
         out_path = REPORTS_DIR / _shap_filename("app2", name)
         if export_model_shap_plot(
             name,
             md,
-            opt_train[pricing_cols].values,
+            X_opt_ref,
             pricing_cols,
             out_path,
             f"Week 6 SHAP Feature Importance – Approach 2 / {name}",
+            y_true=y_opt_ref,
         ):
             shap_artifacts.append(out_path)
+
 
     plot_vol_results(vol_results,     REPORTS_DIR / "week6_vol_prediction_comparison.png")
     plot_pricing_results(pricing_results_with_baseline, REPORTS_DIR / "week6_pricing_comparison.png")
@@ -2182,6 +2981,7 @@ def main() -> None:
     # Architecture design document
     arch_doc  = generate_architecture_doc(
         vol_results, pricing_results_with_baseline,
+        vol_stratified, pricing_stratified,
         vol_train, vol_val, vol_test, opt_train,
         feature_cols, pricing_cols,
         vol_models, pricing_models,
@@ -2244,6 +3044,7 @@ def main() -> None:
     for p in outputs:
         status = "✓" if p.exists() else "✗"
         logger.info("  %s %s", status, p.relative_to(ROOT))
+
 
 
 if __name__ == "__main__":

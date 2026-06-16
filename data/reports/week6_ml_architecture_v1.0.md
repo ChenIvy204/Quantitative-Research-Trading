@@ -1,6 +1,6 @@
 # Week 6 – Machine Learning Model Architecture Design
 
-**Report date**: 20260611  |  **Pipeline version**: v1.0
+**Report date**: 20260617  |  **Pipeline version**: v1.0
 
 > This is the active Week 6 report for the current run. Older dated Week 6
 > report files in `data/reports/` are treated as superseded outputs.
@@ -126,10 +126,24 @@ Dataset: 17,850+ rows (daily dates × chooser contracts).
 ## 4. Time-Series Validation Framework
 
 Data is split **chronologically** (never randomly) to prevent look-ahead bias.
-All features are scaled using `RobustScaler` fitted **only** on the training set.
-For model selection, each tunable learner is optimized with `RandomizedSearchCV`
-and `TimeSeriesSplit`, then refit on the combined train+validation partition
-before the final test-set evaluation.
+The validation policy uses a rolling-window `TimeSeriesSplit` with
+`n_splits=3` on the training partition, no shuffling, and no
+gap. Each fold is fit on a fixed-length trailing training window and validated
+on the next chronological block. This means the training window slides forward
+with a fixed size, while each validation block keeps a fixed chronological size
+(validation window).
+The exact fold ranges are:
+
+| Fold | Window type | Train range | Validation range | Train days | Val window days |
+|------|-------------|-------------|------------------|------------|-----------------|
+| Fold 1 | rolling | 2018-03-29 → 2019-05-30 | 2019-05-31 → 2020-07-29 | 294 | 294 |
+| Fold 2 | rolling | 2019-05-31 → 2020-07-29 | 2020-07-30 → 2021-09-28 | 294 | 294 |
+| Fold 3 | rolling | 2020-07-30 → 2021-09-28 | 2021-09-29 → 2022-11-28 | 294 | 294 |
+
+All features are scaled using `RobustScaler` fitted **only** on the training
+set. For model selection, each tunable learner is optimized with
+`RandomizedSearchCV` under the time-series CV protocol above, then refit on the
+combined train+validation partition before the final test-set evaluation.
 
 | Split | Date Range | Fraction |
 |-------|-----------|----------|
@@ -143,13 +157,41 @@ before the final test-set evaluation.
 
 ### 5.1 Approach 1 – ML Volatility Prediction
 
-| Model | CV MAE | Val MAE | Best parameters |
-|-------|--------|---------|-----------------|
-| RandomForest | 0.12686 | 0.07558 | n_estimators=200, min_samples_split=10, min_samples_leaf=6, max_features=sqrt, max_depth=8 |
-| XGBoost | 0.14393 | 0.07101 | subsample=0.8, reg_lambda=1.0, reg_alpha=1.0, n_estimators=200, min_child_weight=7, max_depth=3, learning_rate=0.01, colsample_bytree=0.9 |
-| LSTM | nan | 0.04836 | - |
+#### Before/After Tuning Snapshot
 
-#### LSTM
+| Approach | Model | Before Val MAE | After Val MAE | Δ MAE | Default fit sec | Search+refit sec | Compute multiple |
+|----------|-------|----------------|---------------|-------|-----------------|------------------|------------------|
+| Approach 1 | RandomForest | 0.0692 | 0.0756 | -0.0064 (-9.3%) | 0.31 | 10.89 | 35.5x |
+| Approach 1 | XGBoost | 0.0699 | 0.0685 | 0.0013 (1.9%) | 0.19 | 4.81 | 25.3x |
+| Approach 2 | LinearRegression | 5.1325 | 4.7457 | 0.3869 (7.5%) | 0.03 | 0.13 | 4.4x |
+| Approach 2 | XGBoost | 6.0226 | 5.1763 | 0.8462 (14.1%) | 0.39 | 6.98 | 17.8x |
+| Approach 2 | NeuralNetwork | 6.2190 | 6.0719 | 0.1471 (2.4%) | 44.88 | 738.97 | 16.5x |
+
+| Approach | Model | Before Val MAE | After Val MAE | Δ MAE | Default fit sec | Search+refit sec | Compute multiple | Best parameters |
+|----------|-------|----------------|---------------|-------|-----------------|------------------|------------------|-----------------|
+| Approach 1 | RandomForest | 0.0692 | 0.0756 | -0.0064 (-9.3%) | 0.25 | 6.95 | 27.3x |
+| Approach 1 | XGBoost | 0.0699 | 0.0685 | 0.0013 (1.9%) | 0.13 | 3.39 | 25.4x |
+| Approach 2 | LinearRegression | 5.1325 | 4.7457 | 0.3869 (7.5%) | 0.02 | 0.09 | 5.4x |
+| Approach 2 | XGBoost | 6.0226 | 5.1763 | 0.8462 (14.1%) | 0.35 | 4.91 | 14.0x |
+| Approach 2 | NeuralNetwork | 6.2190 | 6.0719 | 0.1471 (2.4%) | 8.44 | 172.46 | 20.4x |
+
+| Model | CV MAE | Val MAE | Test Vol MAE | Search sec | Refit/Fit sec | Best parameters |
+|-------|--------|---------|--------------|------------|---------------|-----------------|
+| LSTM | - | 0.0444 | 0.0753 | 6.56 | - | - |
+| LinearRegression | - | 0.0535 | 0.0993 | 0.01 | 0.00 | - |
+| XGBoost | 0.1409 | 0.0685 | 0.0765 | 2.39 | 0.99 | subsample=0.9, reg_lambda=5.0, reg_alpha=0.01, n_estimators=1000, min_child_weight=1, max_depth=6, learning_rate=0.05, colsample_bytree=0.8 |
+| RandomForest | 0.1255 | 0.0756 | 0.0702 | 6.81 | 0.13 | n_estimators=200, min_samples_split=10, min_samples_leaf=6, max_features=sqrt, max_depth=8 |
+| NeuralNetwork | - | 0.0880 | 0.1367 | 0.41 | 0.76 | - |
+
+#### LSTM Ablation
+
+| Lookback | Units 1 | Units 2 | Dropout | LR | Val MAE | Train sec | Selected |
+|----------|---------|---------|---------|----|---------|-----------|----------|
+| 10 | 32 | 16 | 0.2 | 0.001 | 0.0444 | 6.56 | yes |
+| 20 | 64 | 32 | 0.2 | 0.001 | 0.0464 | 11.13 | no |
+| 40 | 128 | 64 | 0.2 | 0.0005 | 0.0495 | 20.32 | no |
+| 20 | 128 | 64 | 0.3 | 0.001 | 0.0489 | 26.52 | no |
+
   - Architecture: LSTM(64) → Dropout(0.2) → LSTM(32) → Dropout(0.2) → Dense(16) → Dense(1)
   - Lookback window: 20 trading days
   - Optimizer: Adam | Loss: MSE | Early stopping (patience=10)
@@ -157,15 +199,20 @@ before the final test-set evaluation.
 
 ### 5.2 Approach 2 – End-to-End Supervised Chooser Pricing
 
-| Model | CV MAE | Val MAE | Best parameters |
-|-------|--------|---------|-----------------|
-| LinearRegression | 7.81781 | 4.74567 | model__positive=True, model__fit_intercept=True |
-| XGBoost | 9.71810 | 5.83563 | subsample=0.9, reg_lambda=5.0, reg_alpha=0.01, n_estimators=1200, min_child_weight=1, max_depth=6, learning_rate=0.03, colsample_bytree=0.8 |
-| NeuralNetwork | 5.78848 | 6.07188 | model__learning_rate_init=0.001, model__hidden_layer_sizes=(256, 128, 64, 32), model__batch_size=64, model__alpha=0.001 |
+| Model | CV MAE | Val MAE | Test MAE | Search sec | Refit/Fit sec | Best parameters |
+|-------|--------|---------|---------|------------|---------------|-----------------|
+| LinearRegression | 8.8246 | 4.7457 | 11.2689 | 0.08 | 0.01 | model__positive=True, model__fit_intercept=True |
+| XGBoost | 8.7259 | 5.1763 | 12.4058 | 4.72 | 0.19 | subsample=0.8, reg_lambda=1.0, reg_alpha=1.0, n_estimators=300, min_child_weight=7, max_depth=3, learning_rate=0.01, colsample_bytree=0.9 |
+| NeuralNetwork | 5.8955 | 6.0719 | 8.4856 | 77.83 | 94.63 | model__learning_rate_init=0.001, model__hidden_layer_sizes=(256, 128, 64, 32), model__batch_size=64, model__alpha=0.001 |
 
 #### Baseline comparison
 - Week 4 BSM baseline (European options): MAE=0.112135, RMSE=0.174916, p-value=0.9524
 - The closed-form chooser formula computed with maturity-matched historical volatility is used only as a comparison baseline, not as the training target.
+
+#### Selection Note
+- For Approach 1, the final ranking is based on validation MAE after the time-series search/refit pipeline.
+- LinearRegression and NeuralNetwork are included in the same ranking table so the model choice uses one metric family across the full candidate set.
+- For Approach 2, the ranking is based on test-set MAE/RMSE after the same chronological split protocol.
 
 ---
 
@@ -176,8 +223,10 @@ before the final test-set evaluation.
 | Model | Vol MAE | Vol RMSE | Option MAE | Option RMSE |
 |-------|---------|----------|------------|-------------|
 | RandomForest | 0.07018 | 0.09641 | 7.1302 | 9.6827 |
-| XGBoost | 0.06879 | 0.09608 | 7.9650 | 11.0598 |
-| LSTM | 0.07472 | 0.10097 | 8.0513 | 11.3817 |
+| XGBoost | 0.07646 | 0.10174 | 9.0047 | 12.1432 |
+| LSTM | 0.07530 | 0.09801 | 9.4707 | 12.5957 |
+| LinearRegression | 0.09926 | 0.12709 | 10.0806 | 14.3767 |
+| NeuralNetwork | 0.13669 | 0.17166 | 13.6551 | 18.1805 |
 
 *Vol MAE/RMSE: annualised vol units. Chooser MAE/RMSE: USD.*
 
@@ -186,11 +235,32 @@ before the final test-set evaluation.
 | Model | MAE ($) | RMSE ($) | R² |
 |-------|---------|----------|-----|
 | LinearRegression | 11.2689 | 14.2303 | -0.2552 |
-| XGBoost | 12.5877 | 16.2446 | -0.6357 |
+| XGBoost | 12.4058 | 15.8663 | -0.5604 |
 | NeuralNetwork | 8.4856 | 11.1067 | 0.2354 |
 | BSM Baseline | 0.6531 | 0.9058 | 0.9949 |
 
 *Target: chooser price benchmarked with Monte Carlo-valued call/put legs. The table includes the closed-form BSM baseline for the same contracts.*
+### 6.3 Stratified Error Diagnostics
+
+This section highlights weak scenarios by showing the worst test slice for each model after splitting by moneyness and maturity bucket.
+
+#### Approach 1 – Volatility Prediction by Moneyness and T2
+
+| Model | Moneyness | T2 bucket | Count | MAE | RMSE | R² |
+|-------|-----------|-----------|-------|-----|------|----|
+| RandomForest | ITM | long | 472 | 9.9373 | 12.8589 | 0.0818 |
+| XGBoost | ITM | long | 472 | 12.6670 | 16.3284 | -0.4805 |
+| LSTM | ITM | long | 472 | 13.1893 | 16.8266 | -0.5723 |
+| LinearRegression | ITM | long | 472 | 14.7293 | 19.9025 | -1.1996 |
+| NeuralNetwork | ITM | long | 472 | 20.5027 | 25.8029 | -2.6972 |
+
+#### Approach 2 – Chooser Pricing by Moneyness, T1, and T2
+
+| Model | Moneyness | T1 | T2 bucket | Count | MAE | RMSE | R² |
+|-------|-----------|----|-----------|-------|-----|------|----|
+| LinearRegression | OTM | 0.25 | long | 256 | 13.8627 | 17.7853 | -1.0143 |
+| XGBoost | OTM | 0.25 | long | 256 | 16.2997 | 20.3417 | -1.6350 |
+| NeuralNetwork | ITM | 0.5 | long | 256 | 11.8733 | 14.7102 | -0.0435 |
 
 ---
 
@@ -244,4 +314,4 @@ before the final test-set evaluation.
 
 ---
 
-*Generated by `week5_ml_models.py` | v1.0 | 20260611*
+*Generated by `week5_ml_models.py` | v1.0 | 20260617*
