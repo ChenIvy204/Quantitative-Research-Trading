@@ -10,3 +10,6 @@ scikit-learn>=1.4.0
 xgboost>=2.0.0
 statsmodels>=0.14.0
 shap==0.44.1
+streamlit>=1.37.0
+fastapi>=0.115.0
+uvicorn>=0.30.0

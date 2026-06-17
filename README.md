@@ -96,6 +96,34 @@ The script writes a versioned CSV summary under `data/processed/` and a Markdown
 It also writes a PDF version of the same report, with markdown tables rendered as standalone formatted tables instead of raw pipe text.
 The Week 3 report now includes the Table 2 inputs, an explicit simulation setup section with the random seed and GBM drift assumption, a paper reference table, and split comparison tables so the row-by-row differences are easier to read.
 
+### 7. Week 7 analysis and tool prototype
+
+Week 7 adds a lightweight tool layer on top of the Week 6 chooser model:
+
+- `scripts/week7_toolkit.py` runs a sensitivity grid, stress tests, and SHAP-based impact summaries from the latest usable market row
+- `scripts/week7_app.py` provides a basic Streamlit pricing prototype with live quote inputs and refresh control
+- `scripts/week7_api.py` exposes the same functionality as a small FastAPI service for downstream UI or automation
+
+Run the analysis report directly with:
+
+```bash
+python scripts/week7_toolkit.py
+```
+
+Run the Streamlit prototype with:
+
+```bash
+streamlit run scripts/week7_app.py
+```
+
+Run the API prototype with:
+
+```bash
+uvicorn scripts.week7_api:app --reload
+```
+
+The Week 7 workflow writes versioned outputs under `data/processed/` and `data/reports/`, including a sensitivity CSV, scenario stress CSV, SHAP summary CSV, and a Markdown report.
+
 ### Feature engineering reference
 
 See [docs/feature_engineering.md](docs/feature_engineering.md) for a concise description of the engineered features and preprocessing steps.
