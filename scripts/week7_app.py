@@ -19,6 +19,7 @@ from week7_toolkit import (  # noqa: E402
     available_model_artifacts,
     batch_price_contracts,
     build_iv_surface,
+    DEFAULT_MODEL_PRIORITY,
     load_feature_frame,
     load_model_bundle,
     compute_greeks,
@@ -86,12 +87,22 @@ def _render_iv_heatmap(iv_surface: pd.DataFrame) -> None:
 
 
 def main() -> None:
-    st.set_page_config(page_title="Week 7 Pricing Tool", layout="wide")
-    st.title("Week 7 Advanced Analysis & Pricing Tool")
+    st.set_page_config(page_title="Week 7 - Sensitivity analysis report", layout="wide")
+    st.title("Week 7 - Sensitivity analysis report")
     st.caption("Sensitivity analysis, stress testing, SHAP summary, and a live pricing prototype built on the Week 6 chooser model.")
 
     model_paths = available_model_artifacts("approach2")
     model_names = [path.stem.replace("week6_", "") for path in model_paths]
+    preferred_names = [
+        "approach2_neuralnetwork_v1.0",
+        "approach2_xgboost_v1.0",
+        "approach2_linearregression_v1.0",
+    ]
+    priority_map = {name: index for index, name in enumerate(preferred_names)}
+    model_names = sorted(
+        model_names,
+        key=lambda name: (priority_map.get(name, len(preferred_names)), name),
+    )
     if not model_names:
         st.error("No Week 6 pricing model artifacts were found.")
         return

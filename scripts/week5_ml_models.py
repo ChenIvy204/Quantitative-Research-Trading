@@ -2299,7 +2299,7 @@ def export_markdown_pdf(md_text: str, pdf_path: Path) -> None:
         fontName="Helvetica-Bold",
         fontSize=18,
         leading=22,
-        textColor=colors.HexColor("#111111"),
+        textColor=colors.HexColor("#123b63"),
         spaceAfter=12,
     )
     h1_style = ParagraphStyle(
@@ -2308,7 +2308,7 @@ def export_markdown_pdf(md_text: str, pdf_path: Path) -> None:
         fontName="Helvetica-Bold",
         fontSize=15,
         leading=18,
-        textColor=colors.HexColor("#111111"),
+        textColor=colors.HexColor("#1f4e79"),
         spaceBefore=8,
         spaceAfter=6,
     )
@@ -2318,7 +2318,7 @@ def export_markdown_pdf(md_text: str, pdf_path: Path) -> None:
         fontName="Helvetica-Bold",
         fontSize=12,
         leading=15,
-        textColor=colors.HexColor("#222222"),
+        textColor=colors.HexColor("#335d8a"),
         spaceBefore=6,
         spaceAfter=4,
     )
@@ -2347,6 +2347,13 @@ def export_markdown_pdf(md_text: str, pdf_path: Path) -> None:
     def cell_text(text: str) -> str:
         return escape_text(text.strip().strip("`") or " ")
 
+    def extract_title(text: str) -> str:
+        for raw_line in text.splitlines():
+            stripped = raw_line.strip()
+            if stripped.startswith("# "):
+                return stripped[2:].strip()
+        return "Week 7 - Sensitivity analysis report"
+
     def parse_markdown_table(table_lines: list[str]) -> list[list[str]]:
         rows: list[list[str]] = []
         for idx, raw_line in enumerate(table_lines):
@@ -2360,13 +2367,13 @@ def export_markdown_pdf(md_text: str, pdf_path: Path) -> None:
         rendered = [[Paragraph(cell_text(cell), body_style) for cell in row] for row in data]
         table = Table(rendered, repeatRows=1)
         table.setStyle(TableStyle([
-            ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#1f2937")),
+            ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#1f4e79")),
             ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
             ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
             ("FONTSIZE", (0, 0), (-1, -1), 8.5),
             ("LEADING", (0, 0), (-1, -1), 10),
-            ("GRID", (0, 0), (-1, -1), 0.35, colors.HexColor("#9ca3af")),
-            ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.whitesmoke, colors.HexColor("#eef2f7")]),
+            ("GRID", (0, 0), (-1, -1), 0.35, colors.HexColor("#9cb4cc")),
+            ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.whitesmoke, colors.HexColor("#eaf1fb")]),
             ("VALIGN", (0, 0), (-1, -1), "TOP"),
             ("LEFTPADDING", (0, 0), (-1, -1), 5),
             ("RIGHTPADDING", (0, 0), (-1, -1), 5),
@@ -2383,7 +2390,7 @@ def export_markdown_pdf(md_text: str, pdf_path: Path) -> None:
             story.append(Paragraph(escape_text(text), body_style))
         buffer.clear()
 
-    story: list = [Paragraph(f"Week 6 – Machine Learning Model Architecture Design ({RUN_DATE})", title_style), Spacer(1, 0.12 * inch)]
+    story: list = [Paragraph(escape_text(extract_title(md_text)), title_style), Spacer(1, 0.12 * inch)]
     paragraph_buffer: list[str] = []
     lines = md_text.splitlines()
     i = 0

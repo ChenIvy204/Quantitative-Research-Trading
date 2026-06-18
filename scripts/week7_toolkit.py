@@ -39,8 +39,8 @@ SCENARIO_STEM = f"{OUTPUT_WEEK}_scenario_tests_{PIPELINE_VER}_{TODAY_STAMP}"
 SHAP_STEM = f"{OUTPUT_WEEK}_shap_summary_{PIPELINE_VER}_{TODAY_STAMP}"
 
 DEFAULT_MODEL_PRIORITY = (
-    "week6_approach2_xgboost_v1.0.joblib",
     "week6_approach2_neuralnetwork_v1.0.joblib",
+    "week6_approach2_xgboost_v1.0.joblib",
     "week6_approach2_linearregression_v1.0.joblib",
     "week6_approach1_xgboost_v1.0.joblib",
 )
@@ -446,22 +446,33 @@ def reference_quotes(
     base_row: pd.Series,
     *,
     contract_overrides: dict[str, float] | None = None,
+    market_overrides: dict[str, float] | None = None,
 ) -> dict[str, float]:
     contract_overrides = contract_overrides or {}
-    contract_s = float(contract_overrides.get("S", base_row.get("close", base_row.get("S", 0.0))))
+    market_overrides = market_overrides or {}
+
+    scenario_row = base_row.to_dict()
+    scenario_row.update(market_overrides)
+
+    contract_s = float(contract_overrides.get("S", scenario_row.get("close", scenario_row.get("S", 0.0))))
     contract_moneyness = float(contract_overrides.get("moneyness", 1.0))
     contract_k = float(contract_overrides.get("K", contract_s * contract_moneyness))
     contract_t1 = float(contract_overrides.get("T1", 0.25))
     contract_t2 = float(contract_overrides.get("T2", 0.5))
     if contract_t2 <= contract_t1:
         contract_t2 = contract_t1 + 0.01
-    contract_r = float(contract_overrides.get("r", base_row.get("r", 0.0)))
-    contract_q = float(contract_overrides.get("q", base_row.get("q", 0.0)))
+    contract_r = float(contract_overrides.get("r", scenario_row.get("r", 0.0)))
+    contract_q = float(contract_overrides.get("q", scenario_row.get("q", 0.0)))
 
     sigma_col = _match_vol_to_maturity(contract_t2)
-    sigma = float(base_row.get(sigma_col, base_row.get("hist_vol_20d", np.nan)))
+    sigma = float(scenario_row.get(sigma_col, scenario_row.get("hist_vol_20d", np.nan)))
     if not np.isfinite(sigma) or sigma <= 0:
-        sigma = float(base_row.get("hist_vol_20d", 0.25))
+        sigma = float(scenario_row.get("hist_vol_20d", 0.25))
+
+    base_vix = float(base_row.get("vix", np.nan))
+    scenario_vix = float(scenario_row.get("vix", np.nan))
+    if np.isfinite(base_vix) and np.isfinite(scenario_vix) and base_vix > 0 and scenario_vix > 0:
+        sigma *= float(np.clip(scenario_vix / base_vix, 0.5, 2.5))
 
     closed_form = chooser_price_scalar(contract_s, contract_k, contract_t1, contract_t2, contract_r, contract_q, sigma)
     mc_quote = chooser_price_mc_scalar(contract_s, contract_k, contract_t1, contract_t2, contract_r, contract_q, sigma)
@@ -521,7 +532,11 @@ def run_sensitivity_analysis(
                 contract_overrides=contract_mutation,
                 market_overrides=market_overrides,
             )
-            refs = reference_quotes(base_row, contract_overrides=contract_mutation)
+            refs = reference_quotes(
+                base_row,
+                contract_overrides=contract_mutation,
+                market_overrides=market_overrides,
+            )
             rows.append(
                 {
                     "feature": feature_name,
@@ -601,7 +616,11 @@ def run_scenario_stress_tests(
             contract_overrides=merged_contract_overrides,
             market_overrides=market_overrides,
         )
-        refs = reference_quotes(base_row, contract_overrides=merged_contract_overrides)
+        refs = reference_quotes(
+            base_row,
+            contract_overrides=merged_contract_overrides,
+            market_overrides=market_overrides,
+        )
         rows.append(
             {
                 "scenario": scenario_name,
@@ -669,7 +688,7 @@ def render_week7_report(
 ) -> str:
     feature_cols = get_pricing_model_columns(get_pricing_feature_columns())
     lines: list[str] = [
-        "# Week 7 - Advanced Analysis & Tool Development",
+        "# Week 7 - Sensitivity analysis report",
         "",
         f"**Report date**: {TODAY_STAMP}  |  **Pipeline version**: {PIPELINE_VER}",
         "",
