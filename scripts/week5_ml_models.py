@@ -268,6 +268,29 @@ def chooser_price_mc_scalar(
 # 2. Data Loading
 # =============================================================================
 
+def _resolve_raw_data_path(filename: str) -> Path:
+    candidate_dirs = [
+        RAW_DIR,
+        ROOT / "data",
+        Path.cwd() / "data" / "raw",
+        Path.cwd() / "data",
+    ]
+
+    seen: set[Path] = set()
+    for directory in candidate_dirs:
+        if directory in seen:
+            continue
+        seen.add(directory)
+        candidate = directory / filename
+        if candidate.exists():
+            return candidate
+
+    searched = ", ".join(str(directory / filename) for directory in candidate_dirs)
+    raise FileNotFoundError(
+        f"Required data file '{filename}' was not found. Searched: {searched}. "
+        "For Streamlit Cloud deployment, commit the raw CSV files or provide them at runtime."
+    )
+
 def load_market_data() -> pd.DataFrame:
     """Load and merge raw market data with retry and integrity checks."""
     
@@ -285,7 +308,7 @@ def load_market_data() -> pd.DataFrame:
         raise RuntimeError(f"Unreachable: failed to read {path}")
 
     # ── Stock prices ──────────────────────────────────────────────────────
-    stock = _read_csv_with_retry(RAW_DIR / "yahoo_jpm_2018_2024.csv", parse_dates=["Date"])
+    stock = _read_csv_with_retry(_resolve_raw_data_path("yahoo_jpm_2018_2024.csv"), parse_dates=["Date"])
     stock = stock.rename(columns={"Date": "date"})
     col_map = {c: c.lower() for c in stock.columns}
     stock = stock.rename(columns=col_map)
@@ -294,19 +317,19 @@ def load_market_data() -> pd.DataFrame:
     stock = _dedupe_daily_frame(stock, "stock")
 
     # ── Risk-free rate (10-yr Treasury) ───────────────────────────────────
-    rates = _read_csv_with_retry(RAW_DIR / "fred_DGS10_2018_2024.csv", parse_dates=["date"])
+    rates = _read_csv_with_retry(_resolve_raw_data_path("fred_DGS10_2018_2024.csv"), parse_dates=["date"])
     rates["dgs10"] = pd.to_numeric(rates["value"], errors="coerce")
     rates = rates[["date", "dgs10"]].set_index("date").sort_index().ffill()
     rates = _dedupe_daily_frame(rates, "rates")
 
     # ── VIX ───────────────────────────────────────────────────────────────
-    vix = _read_csv_with_retry(RAW_DIR / "fred_VIXCLS_2018_2024.csv", parse_dates=["date"])
+    vix = _read_csv_with_retry(_resolve_raw_data_path("fred_VIXCLS_2018_2024.csv"), parse_dates=["date"])
     vix["vix"] = pd.to_numeric(vix["value"], errors="coerce")
     vix = vix[["date", "vix"]].set_index("date").sort_index().ffill()
     vix = _dedupe_daily_frame(vix, "vix")
 
     # ── Dividends → TTM dividend yield ────────────────────────────────────
-    divs = _read_csv_with_retry(RAW_DIR / "jpm_dividends_2018_2024.csv")
+    divs = _read_csv_with_retry(_resolve_raw_data_path("jpm_dividends_2018_2024.csv"))
     divs["date"] = (
         pd.to_datetime(divs["date"], utc=True).dt.tz_convert(None).dt.normalize()
     )
@@ -317,7 +340,7 @@ def load_market_data() -> pd.DataFrame:
 
     # ── News sentiment ────────────────────────────────────────────────────
     news = _read_csv_with_retry(
-        RAW_DIR / "alphavantage_news_jpm_2018_2024.csv",
+        _resolve_raw_data_path("alphavantage_news_jpm_2018_2024.csv"),
         parse_dates=["publishedAt"],
     )
     news["date"] = news["publishedAt"].dt.normalize()
