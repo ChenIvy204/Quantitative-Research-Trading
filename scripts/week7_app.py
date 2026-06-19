@@ -7,6 +7,8 @@ import matplotlib.pyplot as plt
 import pandas as pd
 
 SCRIPT_DIR = Path(__file__).resolve().parent
+ROOT = SCRIPT_DIR.parent
+MODELS_DIR = ROOT / "data" / "models"
 if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
 
@@ -15,38 +17,66 @@ try:
 except ImportError as exc:  # pragma: no cover - only raised when running the app
     raise RuntimeError("Install streamlit to run the Week 7 pricing tool prototype.") from exc
 
-from week7_toolkit import (  # noqa: E402
-    available_model_artifacts,
-    batch_price_contracts,
-    build_iv_surface,
-    DEFAULT_MODEL_PRIORITY,
-    load_feature_frame,
-    load_model_bundle,
-    compute_greeks,
-    estimate_price_interval,
-    predict_chooser_price,
-    reference_quotes,
-    refresh_market_data,
-    run_scenario_stress_tests,
-    run_sensitivity_analysis,
-    select_reference_row,
+DEFAULT_MODEL_PRIORITY = (
+    "approach2_neuralnetwork_v1.0",
+    "approach2_xgboost_v1.0",
+    "approach2_linearregression_v1.0",
 )
+
+
+def _available_model_names() -> list[str]:
+    model_paths = sorted(MODELS_DIR.glob("week6_approach2_*_v1.0.joblib"))
+    model_names = [path.stem.replace("week6_", "") for path in model_paths]
+    priority_map = {name: index for index, name in enumerate(DEFAULT_MODEL_PRIORITY)}
+    return sorted(model_names, key=lambda name: (priority_map.get(name, len(DEFAULT_MODEL_PRIORITY)), name))
+
+
+def _toolkit():
+    from week7_toolkit import (  # noqa: E402
+        batch_price_contracts,
+        build_iv_surface,
+        compute_greeks,
+        estimate_price_interval,
+        load_feature_frame,
+        load_model_bundle,
+        predict_chooser_price,
+        reference_quotes,
+        refresh_market_data,
+        run_scenario_stress_tests,
+        run_sensitivity_analysis,
+        select_reference_row,
+    )
+
+    return {
+        "batch_price_contracts": batch_price_contracts,
+        "build_iv_surface": build_iv_surface,
+        "compute_greeks": compute_greeks,
+        "estimate_price_interval": estimate_price_interval,
+        "load_feature_frame": load_feature_frame,
+        "load_model_bundle": load_model_bundle,
+        "predict_chooser_price": predict_chooser_price,
+        "reference_quotes": reference_quotes,
+        "refresh_market_data": refresh_market_data,
+        "run_scenario_stress_tests": run_scenario_stress_tests,
+        "run_sensitivity_analysis": run_sensitivity_analysis,
+        "select_reference_row": select_reference_row,
+    }
 
 
 @st.cache_data(show_spinner=False)
 def _cached_feature_frame():
-    return load_feature_frame()
+    return _toolkit()["load_feature_frame"]()
 
 
 @st.cache_resource(show_spinner=False)
 def _cached_model_bundle(model_name: str):
-    return load_model_bundle(model_name=model_name)
+    return _toolkit()["load_model_bundle"](model_name=model_name)
 
 
 @st.cache_data(show_spinner=False)
 def _cached_pricing_context(reference_date: str | None, model_name: str):
     feature_frame = _cached_feature_frame()
-    base_row = select_reference_row(feature_frame, reference_date=reference_date)
+    base_row = _toolkit()["select_reference_row"](feature_frame, reference_date=reference_date)
     artifact_path, payload, model = _cached_model_bundle(model_name)
     return feature_frame, base_row, artifact_path, payload, model
 
@@ -99,18 +129,7 @@ def main() -> None:
     st.title("Week 7 - Sensitivity analysis report")
     st.caption("Sensitivity analysis, stress testing, SHAP summary, and a live pricing prototype built on the Week 6 chooser model.")
 
-    model_paths = available_model_artifacts("approach2")
-    model_names = [path.stem.replace("week6_", "") for path in model_paths]
-    preferred_names = [
-        "approach2_neuralnetwork_v1.0",
-        "approach2_xgboost_v1.0",
-        "approach2_linearregression_v1.0",
-    ]
-    priority_map = {name: index for index, name in enumerate(preferred_names)}
-    model_names = sorted(
-        model_names,
-        key=lambda name: (priority_map.get(name, len(preferred_names)), name),
-    )
+    model_names = _available_model_names()
     if not model_names:
         st.error("No Week 6 pricing model artifacts were found.")
         return
@@ -127,7 +146,7 @@ def main() -> None:
 
     if refresh_clicked:
         with st.spinner("Refreshing raw data feeds..."):
-            refresh_market_data()
+            _toolkit()["refresh_market_data"]()
         st.cache_data.clear()
         st.cache_resource.clear()
         st.success("Raw data refresh completed.")
@@ -143,6 +162,7 @@ def main() -> None:
         st.info("The app has started. Click the button to load the model and generate the quote.")
         st.stop()
 
+    toolkit = _toolkit()
     feature_frame, base_row, artifact_path, payload, model = _cached_pricing_context(reference_key, model_name)
     if preset_name == "Custom":
         contract_overrides = _contract_defaults(
@@ -169,14 +189,14 @@ def main() -> None:
     else:
         st.caption("Outputs below are shown from the latest selected inputs. Click Generate Quote to refresh them.")
 
-    live_price = predict_chooser_price(model, base_row, contract_overrides=contract_overrides)
-    refs = reference_quotes(base_row, contract_overrides=contract_overrides)
-    greeks_df = compute_greeks(base_row, contract_overrides=contract_overrides, sigma=refs["sigma_reference"])
-    interval = estimate_price_interval(base_row, contract_overrides=contract_overrides, sigma=refs["sigma_reference"])
+    live_price = toolkit["predict_chooser_price"](model, base_row, contract_overrides=contract_overrides)
+    refs = toolkit["reference_quotes"](base_row, contract_overrides=contract_overrides)
+    greeks_df = toolkit["compute_greeks"](base_row, contract_overrides=contract_overrides, sigma=refs["sigma_reference"])
+    interval = toolkit["estimate_price_interval"](base_row, contract_overrides=contract_overrides, sigma=refs["sigma_reference"])
     if run_heavy_analysis:
-        sensitivity_df = run_sensitivity_analysis(model, base_row, contract_overrides=contract_overrides)
-        scenario_df = run_scenario_stress_tests(model, base_row, contract_overrides=contract_overrides)
-        iv_surface = build_iv_surface(base_row, model_price=live_price, base_contract_overrides=contract_overrides)
+        sensitivity_df = toolkit["run_sensitivity_analysis"](model, base_row, contract_overrides=contract_overrides)
+        scenario_df = toolkit["run_scenario_stress_tests"](model, base_row, contract_overrides=contract_overrides)
+        iv_surface = toolkit["build_iv_surface"](base_row, model_price=live_price, base_contract_overrides=contract_overrides)
     else:
         sensitivity_df = pd.DataFrame()
         scenario_df = pd.DataFrame()
@@ -243,7 +263,7 @@ def main() -> None:
     batch_file = st.file_uploader("Upload CSV with contract rows", type=["csv"])
     if batch_file is not None:
         batch_df = pd.read_csv(batch_file)
-        batch_results = batch_price_contracts(model, base_row, batch_df)
+        batch_results = toolkit["batch_price_contracts"](model, base_row, batch_df)
         st.dataframe(batch_results, width="stretch")
         st.download_button(
             "Download priced CSV",
