@@ -126,8 +126,8 @@ def _render_iv_heatmap(iv_surface: pd.DataFrame) -> None:
 
 def main(*, set_page_config: bool = True, show_landing_page: bool = True) -> None:
     if set_page_config:
-        st.set_page_config(page_title="Week 7 - Sensitivity analysis report", layout="wide")
-    st.title("Week 7 - Sensitivity analysis report")
+        st.set_page_config(page_title="Week 7 Pricing Dashboard", layout="wide")
+    st.title("Week 7 Pricing Dashboard")
     st.caption("Sensitivity analysis, stress testing, SHAP summary, and a live pricing prototype built on the Week 6 chooser model.")
 
     if show_landing_page:
