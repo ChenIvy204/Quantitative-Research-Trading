@@ -124,28 +124,29 @@ def _render_iv_heatmap(iv_surface: pd.DataFrame) -> None:
     st.pyplot(fig, clear_figure=True, use_container_width=True)
 
 
-def main(*, set_page_config: bool = True) -> None:
+def main(*, set_page_config: bool = True, show_landing_page: bool = True) -> None:
     if set_page_config:
         st.set_page_config(page_title="Week 7 - Sensitivity analysis report", layout="wide")
     st.title("Week 7 - Sensitivity analysis report")
     st.caption("Sensitivity analysis, stress testing, SHAP summary, and a live pricing prototype built on the Week 6 chooser model.")
 
-    if "week7_dashboard_open" not in st.session_state:
-        st.session_state["week7_dashboard_open"] = False
+    if show_landing_page:
+        if "week7_dashboard_open" not in st.session_state:
+            st.session_state["week7_dashboard_open"] = False
 
-    if not st.session_state["week7_dashboard_open"]:
-        st.markdown(
-            """
-            ### Quick Start
-            This page now loads in a lightweight mode first.
+        if not st.session_state["week7_dashboard_open"]:
+            st.markdown(
+                """
+                ### Quick Start
+                This page now loads in a lightweight mode first.
 
-            Click below to open the pricing dashboard, load the model, and run the quote workflow.
-            """
-        )
-        if st.button("Open pricing dashboard", type="primary"):
-            st.session_state["week7_dashboard_open"] = True
-            st.rerun()
-        st.stop()
+                Click below to open the pricing dashboard, load the model, and run the quote workflow.
+                """
+            )
+            if st.button("Open pricing dashboard", type="primary"):
+                st.session_state["week7_dashboard_open"] = True
+                st.rerun()
+            st.stop()
 
     model_names = _available_model_names()
     if not model_names:

@@ -20,6 +20,6 @@ st.markdown(
 
 if st.button("Open pricing dashboard", type="primary"):
     dashboard = importlib.import_module("scripts.week7_app")
-    dashboard.main(set_page_config=False)
+    dashboard.main(set_page_config=False, show_landing_page=False)
 else:
     st.info("The app is ready. Open the dashboard when you want to load the model and run analysis.")
