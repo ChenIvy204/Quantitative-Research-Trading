@@ -137,6 +137,9 @@ def main() -> None:
     else:
         contract_overrides = _preset_contract(base_row, preset_name, time_to_choice, maturity)
 
+    run_heavy_analysis = st.checkbox("Run sensitivity, stress, and IV analysis", value=False)
+    st.caption("Uncheck this if the deployment is slow; the live quote still loads immediately.")
+
     st.subheader("Contract Setup")
     contract_cols = st.columns(4)
     contract_cols[0].metric("S", f"{contract_overrides['S']:.2f}")
@@ -154,9 +157,14 @@ def main() -> None:
     refs = reference_quotes(base_row, contract_overrides=contract_overrides)
     greeks_df = compute_greeks(base_row, contract_overrides=contract_overrides, sigma=refs["sigma_reference"])
     interval = estimate_price_interval(base_row, contract_overrides=contract_overrides, sigma=refs["sigma_reference"])
-    sensitivity_df = run_sensitivity_analysis(model, base_row, contract_overrides=contract_overrides)
-    scenario_df = run_scenario_stress_tests(model, base_row, contract_overrides=contract_overrides)
-    iv_surface = build_iv_surface(base_row, model_price=live_price, base_contract_overrides=contract_overrides)
+    if run_heavy_analysis:
+        sensitivity_df = run_sensitivity_analysis(model, base_row, contract_overrides=contract_overrides)
+        scenario_df = run_scenario_stress_tests(model, base_row, contract_overrides=contract_overrides)
+        iv_surface = build_iv_surface(base_row, model_price=live_price, base_contract_overrides=contract_overrides)
+    else:
+        sensitivity_df = pd.DataFrame()
+        scenario_df = pd.DataFrame()
+        iv_surface = pd.DataFrame()
 
     st.subheader("Live Quote")
     quote_cols = st.columns(4)
@@ -193,18 +201,27 @@ def main() -> None:
     left, right = st.columns(2)
     with left:
         st.subheader("Sensitivity Grid")
-        st.dataframe(sensitivity_df, width="stretch")
-        st.line_chart(sensitivity_df.pivot_table(index="value", columns="feature", values="model_price", aggfunc="mean"))
+        if run_heavy_analysis and not sensitivity_df.empty:
+            st.dataframe(sensitivity_df, width="stretch")
+            st.line_chart(sensitivity_df.pivot_table(index="value", columns="feature", values="model_price", aggfunc="mean"))
+        else:
+            st.info("Enable heavy analysis to load sensitivity tables and charts.")
 
     with right:
         st.subheader("Stress Scenarios")
-        st.dataframe(scenario_df, width="stretch")
-        st.bar_chart(scenario_df.set_index("scenario")["delta"])
+        if run_heavy_analysis and not scenario_df.empty:
+            st.dataframe(scenario_df, width="stretch")
+            st.bar_chart(scenario_df.set_index("scenario")["delta"])
+        else:
+            st.info("Enable heavy analysis to load stress scenarios.")
 
     st.subheader("Implied Volatility Surface")
-    st.dataframe(iv_surface, width="stretch", hide_index=True)
-    _render_iv_heatmap(iv_surface)
-    st.caption("The heatmap shows the model-implied volatility surface across moneyness and maturity.")
+    if run_heavy_analysis and not iv_surface.empty:
+        st.dataframe(iv_surface, width="stretch", hide_index=True)
+        _render_iv_heatmap(iv_surface)
+        st.caption("The heatmap shows the model-implied volatility surface across moneyness and maturity.")
+    else:
+        st.info("Enable heavy analysis to compute and display the IV surface.")
 
     st.subheader("Batch Pricing")
     batch_file = st.file_uploader("Upload CSV with contract rows", type=["csv"])
