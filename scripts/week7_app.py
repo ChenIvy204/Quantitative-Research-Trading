@@ -124,8 +124,9 @@ def _render_iv_heatmap(iv_surface: pd.DataFrame) -> None:
     st.pyplot(fig, clear_figure=True, use_container_width=True)
 
 
-def main() -> None:
-    st.set_page_config(page_title="Week 7 - Sensitivity analysis report", layout="wide")
+def main(*, set_page_config: bool = True) -> None:
+    if set_page_config:
+        st.set_page_config(page_title="Week 7 - Sensitivity analysis report", layout="wide")
     st.title("Week 7 - Sensitivity analysis report")
     st.caption("Sensitivity analysis, stress testing, SHAP summary, and a live pricing prototype built on the Week 6 chooser model.")
 
