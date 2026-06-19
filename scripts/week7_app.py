@@ -43,6 +43,14 @@ def _cached_model_bundle(model_name: str):
     return load_model_bundle(model_name=model_name)
 
 
+@st.cache_data(show_spinner=False)
+def _cached_pricing_context(reference_date: str | None, model_name: str):
+    feature_frame = _cached_feature_frame()
+    base_row = select_reference_row(feature_frame, reference_date=reference_date)
+    artifact_path, payload, model = _cached_model_bundle(model_name)
+    return feature_frame, base_row, artifact_path, payload, model
+
+
 def _contract_defaults(base_row, *, strike_multiplier: float, time_to_choice: float, maturity: float) -> dict[str, float]:
     close_price = float(base_row.get("close", 0.0))
     return {
@@ -124,9 +132,18 @@ def main() -> None:
         st.cache_resource.clear()
         st.success("Raw data refresh completed.")
 
-    artifact_path, payload, model = _cached_model_bundle(model_name)
-    feature_frame = _cached_feature_frame()
-    base_row = select_reference_row(feature_frame, reference_date=str(reference_date) if reference_date else None)
+    reference_key = str(reference_date) if reference_date else None
+    if preset_name == "Custom":
+        contract_overrides = None
+    else:
+        contract_overrides = None
+
+    load_clicked = st.button("Load model and generate quote", type="primary")
+    if not load_clicked:
+        st.info("The app has started. Click the button to load the model and generate the quote.")
+        st.stop()
+
+    feature_frame, base_row, artifact_path, payload, model = _cached_pricing_context(reference_key, model_name)
     if preset_name == "Custom":
         contract_overrides = _contract_defaults(
             base_row,
@@ -136,7 +153,6 @@ def main() -> None:
         )
     else:
         contract_overrides = _preset_contract(base_row, preset_name, time_to_choice, maturity)
-
     run_heavy_analysis = st.checkbox("Run sensitivity, stress, and IV analysis", value=False)
     st.caption("Uncheck this if the deployment is slow; the live quote still loads immediately.")
 
