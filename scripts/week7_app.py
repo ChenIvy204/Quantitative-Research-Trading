@@ -37,11 +37,13 @@ def _toolkit():
         build_iv_surface,
         compute_greeks,
         estimate_price_interval,
+        market_data_is_stale,
         load_feature_frame,
         load_model_bundle,
         predict_chooser_price,
         reference_quotes,
         refresh_market_data,
+        refresh_market_data_if_stale,
         run_scenario_stress_tests,
         run_sensitivity_analysis,
         select_reference_row,
@@ -52,6 +54,8 @@ def _toolkit():
         "build_iv_surface": build_iv_surface,
         "compute_greeks": compute_greeks,
         "estimate_price_interval": estimate_price_interval,
+        "market_data_is_stale": market_data_is_stale,
+        "refresh_market_data_if_stale": refresh_market_data_if_stale,
         "load_feature_frame": load_feature_frame,
         "load_model_bundle": load_model_bundle,
         "predict_chooser_price": predict_chooser_price,
@@ -126,9 +130,11 @@ def _render_iv_heatmap(iv_surface: pd.DataFrame) -> None:
 
 def main(*, set_page_config: bool = True, show_landing_page: bool = True) -> None:
     if set_page_config:
-        st.set_page_config(page_title="Week 7 Pricing Dashboard", layout="wide")
-    st.title("Week 7 Pricing Dashboard")
+        st.set_page_config(page_title="Pricing Dashboard", layout="wide")
+    st.title("Pricing Dashboard")
     st.caption("Sensitivity analysis, stress testing, SHAP summary, and a live pricing prototype built on the Week 6 chooser model.")
+    if _toolkit()["refresh_market_data_if_stale"]():
+        st.info("Market data was refreshed automatically because the local cache was stale.")
 
     if show_landing_page:
         if "week7_dashboard_open" not in st.session_state:

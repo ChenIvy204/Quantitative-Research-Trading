@@ -1,0 +1,59 @@
+name: Week 7 Market Data Refresh
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 3 * * *"
+  push:
+    branches:
+      - main
+    paths:
+      - "scripts/week7_app.py"
+      - "scripts/week7_toolkit.py"
+      - "scripts/apis.py"
+      - "requirements.txt"
+      - ".github/workflows/week7_refresh.yml"
+
+jobs:
+  refresh-week7-data:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Refresh market data and rebuild Week 7 outputs
+        env:
+          ALPHA_VANTAGE_API_KEY: ${{ secrets.ALPHA_VANTAGE_API_KEY }}
+          FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
+        run: |
+          python - <<'PY'
+          from scripts.week7_toolkit import run_week7_workflow
+
+          outputs = run_week7_workflow(refresh_raw_data=True)
+          print(f"[OK] Refreshed raw data and rebuilt Week 7 outputs: {outputs['report_path']}")
+          PY
+
+      - name: Upload refreshed artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: week7-refresh-artifacts
+          path: |
+            data/raw/yahoo_jpm_2018_2024.csv
+            data/raw/fred_DGS10_2018_2024.csv
+            data/raw/fred_VIXCLS_2018_2024.csv
+            data/raw/jpm_dividends_2018_2024.csv
+            data/raw/alphavantage_news_jpm_2018_2024.csv
+            data/processed/week7_*.csv
+            data/reports/week7_*.md
+            data/reports/week7_*.pdf

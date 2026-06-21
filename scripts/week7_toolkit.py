@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import sys
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 
 import joblib
@@ -44,6 +44,15 @@ DEFAULT_MODEL_PRIORITY = (
     "week6_approach2_linearregression_v1.0.joblib",
     "week6_approach1_xgboost_v1.0.joblib",
 )
+
+RAW_DATA_FILES = (
+    "yahoo_jpm_2018_2024.csv",
+    "fred_DGS10_2018_2024.csv",
+    "fred_VIXCLS_2018_2024.csv",
+    "jpm_dividends_2018_2024.csv",
+    "alphavantage_news_jpm_2018_2024.csv",
+)
+MARKET_DATA_MAX_AGE_HOURS = 24.0
 
 
 def _format_value(value: object) -> str:
@@ -127,6 +136,7 @@ def _match_vol_to_maturity(t_years: float) -> str:
 
 
 def load_feature_frame() -> pd.DataFrame:
+    refresh_market_data_if_stale()
     raw_df = load_market_data()
     feat_df = build_features(raw_df)
     required = [col for col in get_pricing_feature_columns() if col in feat_df.columns]
@@ -741,7 +751,35 @@ def _sanitize_report_for_pdf(md_text: str) -> str:
 def refresh_market_data() -> None:
     from apis import main as download_latest_data
 
-    download_latest_data()
+    download_latest_data(force_refresh=True)
+
+
+def _market_data_paths() -> list[Path]:
+    from apis import DATA_DIR
+
+    return [DATA_DIR / filename for filename in RAW_DATA_FILES]
+
+
+def market_data_last_updated() -> datetime | None:
+    timestamps: list[datetime] = []
+    for path in _market_data_paths():
+        if path.exists():
+            timestamps.append(datetime.fromtimestamp(path.stat().st_mtime))
+    return max(timestamps) if timestamps else None
+
+
+def market_data_is_stale(*, max_age_hours: float = MARKET_DATA_MAX_AGE_HOURS) -> bool:
+    latest_update = market_data_last_updated()
+    if latest_update is None:
+        return True
+    return datetime.now() - latest_update >= timedelta(hours=max_age_hours)
+
+
+def refresh_market_data_if_stale(*, max_age_hours: float = MARKET_DATA_MAX_AGE_HOURS) -> bool:
+    if market_data_is_stale(max_age_hours=max_age_hours):
+        refresh_market_data()
+        return True
+    return False
 
 
 def run_week7_workflow(

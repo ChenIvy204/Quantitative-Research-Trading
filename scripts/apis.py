@@ -162,9 +162,9 @@ def normalize_news_results(
     return frame
 
 
-def fetch_alpha_vantage_news(api_key: str) -> bool:
+def fetch_alpha_vantage_news(api_key: str, *, force_refresh: bool = False) -> bool:
     existing_path = DATA_DIR / "alphavantage_news_jpm_2018_2024.csv"
-    if existing_path.exists():
+    if existing_path.exists() and not force_refresh:
         ok(f"Alpha Vantage 2018-2024 news file already exists and will be reused: {existing_path.name}")
         return True
 
@@ -235,7 +235,7 @@ def retry_request(url: str, *, params: dict[str, str], retries: int = 3) -> requ
     raise last_error
 
 
-def test_yahoo_finance() -> bool:
+def test_yahoo_finance(*, force_refresh: bool = False) -> bool:
     start_ts = int(datetime.fromisoformat(START_DATE).replace(tzinfo=timezone.utc).timestamp())
     end_ts = int(datetime.fromisoformat(END_DATE_EXCLUSIVE).replace(tzinfo=timezone.utc).timestamp())
     url = "https://query1.finance.yahoo.com/v8/finance/chart/JPM"
@@ -301,7 +301,7 @@ def test_yahoo_finance() -> bool:
     path = save_csv(history, "yahoo_jpm_2018_2024.csv")
     ok(f"Yahoo Finance returned {len(history)} rows for JPM and saved {path.name}")
 
-    if dividend_cache.exists():
+    if dividend_cache.exists() and not force_refresh:
         ok(f"JPM dividend cache already exists and will be reused: {dividend_cache.name}")
         return True
 
@@ -354,9 +354,9 @@ def test_yahoo_finance() -> bool:
     return True
 
 
-def test_fred(api_key: str, series_id: str, filename: str) -> None:
+def test_fred(api_key: str, series_id: str, filename: str, *, force_refresh: bool = False) -> None:
     existing_path = DATA_DIR / filename
-    if existing_path.exists():
+    if existing_path.exists() and not force_refresh:
         ok(f"FRED {series_id} file already exists and will be reused: {existing_path.name}")
         return
 
@@ -394,7 +394,7 @@ def test_fred(api_key: str, series_id: str, filename: str) -> None:
     ok(f"FRED returned {len(frame)} rows for {series_id} and saved {path.name}")
 
 
-def main() -> None:
+def main(*, force_refresh: bool = False) -> None:
     fred_key = os.getenv("FRED_API_KEY", "").strip()
     news_key = os.getenv("ALPHA_VANTAGE_API_KEY", "").strip()
 
@@ -404,10 +404,10 @@ def main() -> None:
     if not news_key:
         fail("Missing ALPHA_VANTAGE_API_KEY")
 
-    yahoo_ok = test_yahoo_finance()
-    news_ok = fetch_alpha_vantage_news(news_key)
-    test_fred(fred_key, "DGS10", "fred_DGS10_2018_2024.csv")
-    test_fred(fred_key, "VIXCLS", "fred_VIXCLS_2018_2024.csv")
+    yahoo_ok = test_yahoo_finance(force_refresh=force_refresh)
+    news_ok = fetch_alpha_vantage_news(news_key, force_refresh=force_refresh)
+    test_fred(fred_key, "DGS10", "fred_DGS10_2018_2024.csv", force_refresh=force_refresh)
+    test_fred(fred_key, "VIXCLS", "fred_VIXCLS_2018_2024.csv", force_refresh=force_refresh)
 
     if yahoo_ok is False:
         print("[WARN] Yahoo Finance download did not complete, but FRED did.")
