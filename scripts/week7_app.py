@@ -373,10 +373,11 @@ def main(*, set_page_config: bool = True, show_landing_page: bool = True) -> Non
         perf_cols[1].metric("Test MAE", "N/A")
         perf_cols[2].metric("Test RMSE", "N/A")
 
+    st.caption(f"Source: data/processed/week6_pricing_results_v1.0.csv | Rows loaded: {len(pricing_summary)}")
     perf_left, perf_right = st.columns(2)
     with perf_left:
         st.caption("Week 6 ML pricing leaderboard")
-        st.dataframe(ml_pricing_summary.head(5), width="stretch", hide_index=True)
+        st.dataframe(pricing_summary.head(5), width="stretch", hide_index=True)
     with perf_right:
         st.caption("Latest Week 4 BSM benchmark")
         if not bsm_summary.empty and "group" in bsm_summary.columns:
