@@ -330,11 +330,13 @@ def compute_greeks(
     base_row: pd.Series,
     *,
     contract_overrides: dict[str, float] | None = None,
+    market_overrides: dict[str, float] | None = None,
     sigma: float | None = None,
     rel_step: float = 0.01,
 ) -> pd.DataFrame:
     contract_overrides = contract_overrides or {}
-    refs = reference_quotes(base_row, contract_overrides=contract_overrides)
+    market_overrides = market_overrides or {}
+    refs = reference_quotes(base_row, contract_overrides=contract_overrides, market_overrides=market_overrides)
     sigma = float(sigma if sigma is not None else refs["sigma_reference"])
     if not np.isfinite(sigma) or sigma <= 0:
         sigma = 0.25
@@ -389,11 +391,13 @@ def estimate_price_interval(
     base_row: pd.Series,
     *,
     contract_overrides: dict[str, float] | None = None,
+    market_overrides: dict[str, float] | None = None,
     sigma: float | None = None,
     sigma_uncertainty: float | None = None,
 ) -> dict[str, float]:
     contract_overrides = contract_overrides or {}
-    refs = reference_quotes(base_row, contract_overrides=contract_overrides)
+    market_overrides = market_overrides or {}
+    refs = reference_quotes(base_row, contract_overrides=contract_overrides, market_overrides=market_overrides)
     sigma = float(sigma if sigma is not None else refs["sigma_reference"])
     if not np.isfinite(sigma) or sigma <= 0:
         sigma = 0.25
@@ -403,7 +407,12 @@ def estimate_price_interval(
         sigma_uncertainty = float(vol_series.dropna().std()) if vol_series.dropna().size > 1 else max(0.02, sigma * 0.1)
     sigma_uncertainty = max(0.0001, float(sigma_uncertainty))
 
-    greeks = compute_greeks(base_row, contract_overrides=contract_overrides, sigma=sigma)
+    greeks = compute_greeks(
+        base_row,
+        contract_overrides=contract_overrides,
+        market_overrides=market_overrides,
+        sigma=sigma,
+    )
     base_price = float(greeks.loc[greeks["metric"] == "price", "value"].iloc[0])
     vega = float(greeks.loc[greeks["metric"] == "vega", "value"].iloc[0])
     half_width = 1.96 * abs(vega) * sigma_uncertainty
