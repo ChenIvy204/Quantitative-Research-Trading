@@ -283,8 +283,7 @@ def main(*, set_page_config: bool = True, show_landing_page: bool = True) -> Non
         )
     else:
         contract_overrides = _preset_contract(base_row, preset_name, time_to_choice, maturity)
-    run_heavy_analysis = st.checkbox("Run sensitivity, stress, and IV analysis", value=False)
-    st.caption("Uncheck this if the deployment is slow; the live quote still loads immediately.")
+    run_heavy_analysis = True
 
     st.subheader("Contract Setup")
     contract_cols = st.columns(4)
@@ -335,11 +334,11 @@ def main(*, set_page_config: bool = True, show_landing_page: bool = True) -> Non
         best_model_label=best_model_label,
     )
 
-    if run_heavy_analysis and not trend_df.empty:
+    if not trend_df.empty:
         st.subheader("Price Trend")
         _render_trend_chart(trend_df, best_model_label=best_model_label)
     else:
-        st.info("Enable heavy analysis to view the recent price trend with uncertainty bands.")
+        st.info("No trend data was produced for the selected date range.")
 
     st.subheader("Risk Metrics")
     greek_cols = st.columns(4)
@@ -394,28 +393,28 @@ def main(*, set_page_config: bool = True, show_landing_page: bool = True) -> Non
     left, right = st.columns(2)
     with left:
         st.subheader("Sensitivity Grid")
-        if run_heavy_analysis and not sensitivity_df.empty:
+        if not sensitivity_df.empty:
             sensitivity_feature = st.selectbox("Sensitivity feature", sorted(sensitivity_df["feature"].unique().tolist()))
             st.dataframe(sensitivity_df[sensitivity_df["feature"] == sensitivity_feature], width="stretch")
             _render_sensitivity_curve(sensitivity_df, sensitivity_feature, best_model_label=best_model_label)
         else:
-            st.info("Enable heavy analysis to load sensitivity tables and charts.")
+            st.info("No sensitivity data was produced for the selected inputs.")
 
     with right:
         st.subheader("Stress Scenarios")
-        if run_heavy_analysis and not scenario_df.empty:
+        if not scenario_df.empty:
             st.dataframe(scenario_df, width="stretch")
             st.bar_chart(scenario_df.set_index("scenario")["delta"])
         else:
-            st.info("Enable heavy analysis to load stress scenarios.")
+            st.info("No stress scenarios were produced for the selected inputs.")
 
     st.subheader("Implied Volatility Surface")
-    if run_heavy_analysis and not iv_surface.empty:
+    if not iv_surface.empty:
         st.dataframe(iv_surface, width="stretch", hide_index=True)
         _render_iv_heatmap(iv_surface)
         st.caption("The heatmap shows the model-implied volatility surface across moneyness and maturity.")
     else:
-        st.info("Enable heavy analysis to compute and display the IV surface.")
+        st.info("No IV surface data was produced for the selected inputs.")
 
     st.subheader("Batch Pricing")
     batch_file = st.file_uploader("Upload CSV with contract rows", type=["csv"])
