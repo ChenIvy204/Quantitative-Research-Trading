@@ -212,8 +212,6 @@ def main(*, set_page_config: bool = True, show_landing_page: bool = True) -> Non
     if set_page_config:
         st.set_page_config(page_title="Pricing Dashboard", layout="wide")
     st.title("Pricing Dashboard")
-    if "week7_quote_loaded" not in st.session_state:
-        st.session_state["week7_quote_loaded"] = False
 
     st.caption("Sensitivity analysis, stress testing, SHAP summary, and a live pricing prototype built on the Week 6 chooser model.")
     if _toolkit()["refresh_market_data_if_stale"]():
@@ -270,11 +268,6 @@ def main(*, set_page_config: bool = True, show_landing_page: bool = True) -> Non
     else:
         contract_overrides = None
 
-    load_clicked = st.button("Load model and generate quote", type="primary")
-    if not load_clicked:
-        st.info("The dashboard is open. Click the button to load the model and generate the quote.")
-        st.stop()
-
     toolkit = _toolkit()
     feature_frame, base_row, artifact_path, payload, model = _cached_pricing_context(reference_key, model_name)
     if preset_name == "Custom":
@@ -286,6 +279,7 @@ def main(*, set_page_config: bool = True, show_landing_page: bool = True) -> Non
         )
     else:
         contract_overrides = _preset_contract(base_row, preset_name, time_to_choice, maturity)
+
     run_heavy_analysis = True
 
     st.subheader("Contract Setup")
@@ -295,11 +289,7 @@ def main(*, set_page_config: bool = True, show_landing_page: bool = True) -> Non
     contract_cols[2].metric("T1", f"{contract_overrides['T1']:.2f}")
     contract_cols[3].metric("T2", f"{contract_overrides['T2']:.2f}")
 
-    generate_clicked = st.button("Generate Quote", type="primary")
-    if generate_clicked:
-        st.toast("Quote refreshed", icon="✅")
-    else:
-        st.caption("Outputs below are shown from the latest selected inputs. Click Generate Quote to refresh them.")
+    st.caption("Outputs below update automatically when you change the inputs.")
 
     live_price = toolkit["predict_chooser_price"](model, base_row, contract_overrides=contract_overrides)
     refs = toolkit["reference_quotes"](base_row, contract_overrides=contract_overrides)
