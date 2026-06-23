@@ -33,14 +33,11 @@ def _available_model_names() -> list[str]:
 
 def _toolkit():
     from week7_toolkit import (  # noqa: E402
-        best_pricing_model_name,
         batch_price_contracts,
         build_iv_surface,
         build_price_trend_frame,
         compute_greeks,
         estimate_price_interval,
-        load_bsm_error_summary,
-        load_pricing_performance_summary,
         market_data_is_stale,
         load_feature_frame,
         load_model_bundle,
@@ -54,14 +51,11 @@ def _toolkit():
     )
 
     return {
-        "best_pricing_model_name": best_pricing_model_name,
         "batch_price_contracts": batch_price_contracts,
         "build_iv_surface": build_iv_surface,
         "build_price_trend_frame": build_price_trend_frame,
         "compute_greeks": compute_greeks,
         "estimate_price_interval": estimate_price_interval,
-        "load_bsm_error_summary": load_bsm_error_summary,
-        "load_pricing_performance_summary": load_pricing_performance_summary,
         "market_data_is_stale": market_data_is_stale,
         "refresh_market_data_if_stale": refresh_market_data_if_stale,
         "load_feature_frame": load_feature_frame,
@@ -240,10 +234,7 @@ def main(*, set_page_config: bool = True, show_landing_page: bool = True) -> Non
         st.error("No Week 6 pricing model artifacts were found.")
         return
 
-    pricing_summary = _toolkit()["load_pricing_performance_summary"]()
-    bsm_summary = _toolkit()["load_bsm_error_summary"]()
-    best_model_label = _toolkit()["best_pricing_model_name"](pricing_summary) or model_names[0]
-    best_model_index = next((idx for idx, name in enumerate(model_names) if best_model_label.lower() in name.lower()), 0)
+    best_model_index = 0
 
     with st.sidebar:
         st.header("Quote Inputs")
@@ -359,32 +350,6 @@ def main(*, set_page_config: bool = True, show_landing_page: bool = True) -> Non
     ]
     base_snapshot = {field: base_row.get(field) for field in snapshot_fields if field in base_row.index}
     st.dataframe(pd.DataFrame([base_snapshot]), width="stretch")
-
-    st.subheader("Performance Summary")
-    perf_cols = st.columns(3)
-    ml_pricing_summary = pricing_summary[~pricing_summary["model"].astype(str).str.contains("bsm", case=False, na=False)].copy()
-    best_perf_row = ml_pricing_summary.iloc[0] if not ml_pricing_summary.empty else None
-    if best_perf_row is not None:
-        perf_cols[0].metric("Best ML model", str(best_perf_row.get("model", best_model_label)))
-        perf_cols[1].metric("Test MAE", f"{float(best_perf_row.get('mae', 0.0)):.4f}")
-        perf_cols[2].metric("Test RMSE", f"{float(best_perf_row.get('rmse', 0.0)):.4f}")
-    else:
-        perf_cols[0].metric("Best ML model", selected_model_label)
-        perf_cols[1].metric("Test MAE", "N/A")
-        perf_cols[2].metric("Test RMSE", "N/A")
-
-    st.caption(f"Source: data/processed/week6_pricing_results_v1.0.csv | Rows loaded: {len(pricing_summary)}")
-    perf_left, perf_right = st.columns(2)
-    with perf_left:
-        st.caption("Week 6 ML pricing leaderboard")
-        st.dataframe(pricing_summary.head(5), width="stretch", hide_index=True)
-    with perf_right:
-        st.caption("Latest Week 4 BSM benchmark")
-        if not bsm_summary.empty and "group" in bsm_summary.columns:
-            overall_bsm = bsm_summary[bsm_summary["group"].astype(str) == "overall"].head(1)
-            st.dataframe(overall_bsm if not overall_bsm.empty else bsm_summary.head(5), width="stretch", hide_index=True)
-        else:
-            st.info("No BSM benchmark summary CSV was found in data/processed.")
 
     left, right = st.columns(2)
     with left:
