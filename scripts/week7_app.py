@@ -212,6 +212,9 @@ def main(*, set_page_config: bool = True, show_landing_page: bool = True) -> Non
     if set_page_config:
         st.set_page_config(page_title="Pricing Dashboard", layout="wide")
     st.title("Pricing Dashboard")
+    if "week7_quote_loaded" not in st.session_state:
+        st.session_state["week7_quote_loaded"] = False
+
     st.caption("Sensitivity analysis, stress testing, SHAP summary, and a live pricing prototype built on the Week 6 chooser model.")
     if _toolkit()["refresh_market_data_if_stale"]():
         st.info("Market data was refreshed automatically because the local cache was stale.")
