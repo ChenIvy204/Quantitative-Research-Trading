@@ -87,43 +87,6 @@ def _cached_pricing_context(reference_date: str | None, model_name: str):
     return feature_frame, base_row, artifact_path, payload, model
 
 
-@st.cache_data(show_spinner=False)
-def _cached_pricing_results_summary() -> pd.DataFrame:
-    summary_path = ROOT / "data" / "processed" / "week6_pricing_results_v1.0.csv"
-    if not summary_path.exists():
-        return pd.DataFrame(columns=["model", "mae", "rmse", "r2", "inference_time_ms"])
-
-    frame = pd.read_csv(summary_path)
-    for column in ("mae", "rmse", "r2", "inference_time_ms"):
-        if column in frame.columns:
-            frame[column] = pd.to_numeric(frame[column], errors="coerce")
-    return frame
-
-
-def _select_pricing_metrics(summary: pd.DataFrame, model_name: str) -> pd.Series | None:
-    if summary.empty or "model" not in summary.columns:
-        return None
-
-    normalized = model_name.lower()
-    for _, row in summary.iterrows():
-        candidate = str(row.get("model", "")).lower()
-        if candidate and (candidate in normalized or normalized in candidate):
-            return row
-
-    aliases = {
-        "neuralnetwork": "neuralnetwork",
-        "xgboost": "xgboost",
-        "linearregression": "linearregression",
-    }
-    for key, alias in aliases.items():
-        if key in normalized:
-            matched = summary[summary["model"].astype(str).str.lower().str.contains(alias, na=False)]
-            if not matched.empty:
-                return matched.iloc[0]
-
-    return None
-
-
 def _contract_defaults(base_row, *, strike_multiplier: float, time_to_choice: float, maturity: float) -> dict[str, float]:
     close_price = float(base_row.get("close", 0.0))
     return {
@@ -298,7 +261,6 @@ def main(*, set_page_config: bool = True, show_landing_page: bool = True) -> Non
 
     toolkit = _toolkit()
     feature_frame, base_row, artifact_path, payload, model = _cached_pricing_context(reference_key, model_name)
-    pricing_summary = _cached_pricing_results_summary()
     selected_model_label = model_name
     if preset_name == "Custom":
         contract_overrides = _contract_defaults(
@@ -357,19 +319,6 @@ def main(*, set_page_config: bool = True, show_landing_page: bool = True) -> Non
         interval["upper"],
         best_model_label=selected_model_label,
     )
-
-    current_metrics = _select_pricing_metrics(pricing_summary, selected_model_label)
-    st.subheader("Current Model Performance")
-    metric_cols = st.columns(3)
-    if current_metrics is not None:
-        metric_cols[0].metric("MAE", f"{float(current_metrics.get('mae', float('nan'))):.4f}")
-        metric_cols[1].metric("RMSE", f"{float(current_metrics.get('rmse', float('nan'))):.4f}")
-        metric_cols[2].metric("R²", f"{float(current_metrics.get('r2', float('nan'))):.4f}")
-    else:
-        metric_cols[0].metric("MAE", "N/A")
-        metric_cols[1].metric("RMSE", "N/A")
-        metric_cols[2].metric("R²", "N/A")
-    st.caption(f"Matched from {ROOT / 'data' / 'processed' / 'week6_pricing_results_v1.0.csv'}")
 
     if not trend_df.empty:
         st.subheader("Price Trend")
