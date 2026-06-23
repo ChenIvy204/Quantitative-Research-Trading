@@ -45,6 +45,11 @@ DEFAULT_MODEL_PRIORITY = (
     "week6_approach1_xgboost_v1.0.joblib",
 )
 
+
+def _latest_processed_file(pattern: str) -> Path | None:
+    candidates = sorted(PROCESSED_DIR.glob(pattern))
+    return candidates[-1] if candidates else None
+
 RAW_DATA_FILES = (
     "yahoo_jpm_2018_2024.csv",
     "fred_DGS10_2018_2024.csv",
@@ -120,6 +125,44 @@ def load_model_bundle(model_name: str | None = None, approach: str = "approach2"
         model = payload
         payload = {"model": model}
     return artifact_path, payload, model
+
+
+def load_pricing_performance_summary() -> pd.DataFrame:
+    summary_path = _latest_processed_file("week6_pricing_results_v1.0*.csv")
+    if summary_path is None:
+        return pd.DataFrame(columns=["model", "mae", "rmse", "r2", "inference_time_ms"])
+
+    frame = pd.read_csv(summary_path)
+    for column in ("mae", "rmse", "r2", "inference_time_ms"):
+        if column in frame.columns:
+            frame[column] = pd.to_numeric(frame[column], errors="coerce")
+    return frame.sort_values(["mae", "rmse"], ascending=[True, True], na_position="last").reset_index(drop=True)
+
+
+def load_bsm_error_summary() -> pd.DataFrame:
+    summary_path = _latest_processed_file("week4_bsm_error_metrics_v1.0_*.csv")
+    if summary_path is None:
+        return pd.DataFrame(columns=["group", "n", "ME", "MAE", "RMSE", "t_stat", "p_val_ME", "max_abs_err"])
+
+    frame = pd.read_csv(summary_path)
+    for column in ("n", "ME", "MAE", "RMSE", "t_stat", "max_abs_err"):
+        if column in frame.columns:
+            frame[column] = pd.to_numeric(frame[column], errors="coerce")
+    return frame
+
+
+def best_pricing_model_name(performance_df: pd.DataFrame | None = None) -> str | None:
+    frame = performance_df if performance_df is not None else load_pricing_performance_summary()
+    if frame.empty or "model" not in frame.columns:
+        return None
+    non_baseline = frame[~frame["model"].astype(str).str.contains("bsm", case=False, na=False)].copy()
+    if non_baseline.empty:
+        non_baseline = frame.copy()
+    if "mae" in non_baseline.columns:
+        best_row = non_baseline.sort_values(["mae", "rmse"], ascending=[True, True], na_position="last").iloc[0]
+    else:
+        best_row = non_baseline.iloc[0]
+    return str(best_row["model"])
 
 
 def _match_vol_to_maturity(t_years: float) -> str:
@@ -219,6 +262,51 @@ def predict_chooser_price(
     )
     prediction = model.predict(inputs)
     return float(np.asarray(prediction).reshape(-1)[0])
+
+
+def build_price_trend_frame(
+    feature_frame: pd.DataFrame,
+    model: object,
+    *,
+    contract_overrides: dict[str, float] | None = None,
+    lookback_days: int = 30,
+    anchor_date: pd.Timestamp | str | None = None,
+) -> pd.DataFrame:
+    contract_overrides = contract_overrides or {}
+    if feature_frame.empty:
+        return pd.DataFrame(columns=["date", "bsm_price", "model_price", "price_ci_lower", "price_ci_upper", "close"])
+
+    ordered = feature_frame.sort_index()
+    if anchor_date is not None:
+        anchor_ts = pd.Timestamp(anchor_date).normalize()
+        ordered = ordered.loc[:anchor_ts]
+    trend_frame = ordered.tail(max(2, lookback_days)).copy()
+    rows: list[dict[str, object]] = []
+    for date, row in trend_frame.iterrows():
+        row_contract = dict(contract_overrides)
+        close_price = float(row.get("close", row.get("S", 0.0)))
+        row_contract["S"] = close_price
+        row_contract["K"] = close_price * float(row_contract.get("moneyness", 1.0))
+        row_contract.setdefault("T1", float(contract_overrides.get("T1", 0.25)))
+        row_contract.setdefault("T2", float(contract_overrides.get("T2", 0.5)))
+
+        refs = reference_quotes(row, contract_overrides=row_contract)
+        model_price = predict_chooser_price(model, row, contract_overrides=row_contract)
+        interval = estimate_price_interval(row, contract_overrides=row_contract, sigma=refs["sigma_reference"])
+        rows.append(
+            {
+                "date": date,
+                "close": close_price,
+                "bsm_price": refs["closed_form_quote"],
+                "mc_price": refs["mc_quote"],
+                "model_price": model_price,
+                "price_ci_lower": interval["lower"],
+                "price_ci_upper": interval["upper"],
+                "price_gap": model_price - refs["closed_form_quote"],
+            }
+        )
+
+    return pd.DataFrame(rows)
 
 
 def _chooser_price_from_sigma(
@@ -547,6 +635,12 @@ def run_sensitivity_analysis(
                 contract_overrides=contract_mutation,
                 market_overrides=market_overrides,
             )
+            interval = estimate_price_interval(
+                base_row,
+                contract_overrides=contract_mutation,
+                market_overrides=market_overrides,
+                sigma=refs["sigma_reference"],
+            )
             rows.append(
                 {
                     "feature": feature_name,
@@ -558,6 +652,8 @@ def run_sensitivity_analysis(
                     "closed_form_quote": refs["closed_form_quote"],
                     "mc_quote": refs["mc_quote"],
                     "sigma_reference": refs["sigma_reference"],
+                    "price_ci_lower": interval["lower"],
+                    "price_ci_upper": interval["upper"],
                 }
             )
 

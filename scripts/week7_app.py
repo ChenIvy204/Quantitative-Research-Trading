@@ -13,7 +13,7 @@ if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
 
 try:
-    import streamlit as st
+    import streamlit as st  # type: ignore[import-not-found]
 except ImportError as exc:  # pragma: no cover - only raised when running the app
     raise RuntimeError("Install streamlit to run the Week 7 pricing tool prototype.") from exc
 
@@ -33,10 +33,14 @@ def _available_model_names() -> list[str]:
 
 def _toolkit():
     from week7_toolkit import (  # noqa: E402
+        best_pricing_model_name,
         batch_price_contracts,
         build_iv_surface,
+        build_price_trend_frame,
         compute_greeks,
         estimate_price_interval,
+        load_bsm_error_summary,
+        load_pricing_performance_summary,
         market_data_is_stale,
         load_feature_frame,
         load_model_bundle,
@@ -50,10 +54,14 @@ def _toolkit():
     )
 
     return {
+        "best_pricing_model_name": best_pricing_model_name,
         "batch_price_contracts": batch_price_contracts,
         "build_iv_surface": build_iv_surface,
+        "build_price_trend_frame": build_price_trend_frame,
         "compute_greeks": compute_greeks,
         "estimate_price_interval": estimate_price_interval,
+        "load_bsm_error_summary": load_bsm_error_summary,
+        "load_pricing_performance_summary": load_pricing_performance_summary,
         "market_data_is_stale": market_data_is_stale,
         "refresh_market_data_if_stale": refresh_market_data_if_stale,
         "load_feature_frame": load_feature_frame,
@@ -128,6 +136,78 @@ def _render_iv_heatmap(iv_surface: pd.DataFrame) -> None:
     st.pyplot(fig, clear_figure=True, use_container_width=True)
 
 
+def _render_dual_price_chart(bsm_price: float, ml_price: float, lower: float, upper: float, *, best_model_label: str) -> None:
+    fig, ax = plt.subplots(figsize=(6.8, 3.8))
+    ax.scatter([0], [bsm_price], s=120, color="#1565C0", label="BSM")
+    ax.scatter([1], [ml_price], s=120, color="#E53935", label=best_model_label)
+    ax.errorbar(
+        [1],
+        [ml_price],
+        yerr=[[max(0.0, ml_price - lower)], [max(0.0, upper - ml_price)]],
+        fmt="none",
+        ecolor="#E53935",
+        elinewidth=2,
+        capsize=6,
+    )
+    ax.set_xticks([0, 1])
+    ax.set_xticklabels(["BSM", best_model_label], rotation=0)
+    ax.set_ylabel("Price")
+    ax.set_title("Dual Pricing with Model Uncertainty")
+    ax.grid(axis="y", alpha=0.25)
+    ax.legend(loc="best")
+    st.pyplot(fig, clear_figure=True, use_container_width=True)
+
+
+def _render_trend_chart(trend_df: pd.DataFrame, *, best_model_label: str) -> None:
+    fig, ax = plt.subplots(figsize=(10, 4.2))
+    ax.plot(trend_df["date"], trend_df["bsm_price"], color="#1565C0", linewidth=2.2, label="BSM")
+    ax.plot(trend_df["date"], trend_df["model_price"], color="#E53935", linewidth=2.2, label=best_model_label)
+    ax.fill_between(
+        trend_df["date"],
+        trend_df["price_ci_lower"],
+        trend_df["price_ci_upper"],
+        color="#E53935",
+        alpha=0.12,
+        label="ML uncertainty band",
+    )
+    ax.set_title("Price Trend Over Recent Market Dates")
+    ax.set_ylabel("Price")
+    ax.grid(alpha=0.25)
+    ax.legend(loc="best")
+    fig.autofmt_xdate()
+    st.pyplot(fig, clear_figure=True, use_container_width=True)
+
+
+def _render_sensitivity_curve(sensitivity_df: pd.DataFrame, feature_name: str, *, best_model_label: str) -> None:
+    subset = sensitivity_df[sensitivity_df["feature"] == feature_name].copy()
+    if subset.empty:
+        st.info("No sensitivity rows were produced for the selected feature.")
+        return
+
+    subset = subset.sort_values("value")
+    fig, ax = plt.subplots(figsize=(8.6, 4.2))
+    ax.plot(subset["value"], subset["closed_form_quote"], color="#1565C0", linewidth=2.0, label="BSM")
+    ax.plot(subset["value"], subset["model_price"], color="#E53935", linewidth=2.0, label=best_model_label)
+    ax.errorbar(
+        subset["value"],
+        subset["model_price"],
+        yerr=[
+            (subset["model_price"] - subset["price_ci_lower"]).clip(lower=0.0),
+            (subset["price_ci_upper"] - subset["model_price"]).clip(lower=0.0),
+        ],
+        fmt="none",
+        ecolor="#E53935",
+        alpha=0.55,
+        capsize=4,
+    )
+    ax.set_title(f"Sensitivity Curve: {feature_name}")
+    ax.set_xlabel(feature_name)
+    ax.set_ylabel("Price")
+    ax.grid(alpha=0.25)
+    ax.legend(loc="best")
+    st.pyplot(fig, clear_figure=True, use_container_width=True)
+
+
 def main(*, set_page_config: bool = True, show_landing_page: bool = True) -> None:
     if set_page_config:
         st.set_page_config(page_title="Pricing Dashboard", layout="wide")
@@ -159,9 +239,14 @@ def main(*, set_page_config: bool = True, show_landing_page: bool = True) -> Non
         st.error("No Week 6 pricing model artifacts were found.")
         return
 
+    pricing_summary = _toolkit()["load_pricing_performance_summary"]()
+    bsm_summary = _toolkit()["load_bsm_error_summary"]()
+    best_model_label = _toolkit()["best_pricing_model_name"](pricing_summary) or model_names[0]
+    best_model_index = next((idx for idx, name in enumerate(model_names) if best_model_label.lower() in name.lower()), 0)
+
     with st.sidebar:
         st.header("Quote Inputs")
-        model_name = st.selectbox("Model", model_names, index=0)
+        model_name = st.selectbox("Model", model_names, index=best_model_index)
         reference_date = st.date_input("Reference date")
         preset_name = st.selectbox("Quick preset", ["Custom", "ATM", "OTM 10%", "ITM 10%"], index=0)
         strike_multiplier = st.slider("Moneyness", 0.80, 1.20, 1.00, 0.01)
@@ -222,17 +307,39 @@ def main(*, set_page_config: bool = True, show_landing_page: bool = True) -> Non
         sensitivity_df = toolkit["run_sensitivity_analysis"](model, base_row, contract_overrides=contract_overrides)
         scenario_df = toolkit["run_scenario_stress_tests"](model, base_row, contract_overrides=contract_overrides)
         iv_surface = toolkit["build_iv_surface"](base_row, model_price=live_price, base_contract_overrides=contract_overrides)
+        trend_df = toolkit["build_price_trend_frame"](
+            feature_frame,
+            model,
+            contract_overrides=contract_overrides,
+            lookback_days=30,
+            anchor_date=base_row.name if isinstance(base_row.name, pd.Timestamp) else None,
+        )
     else:
         sensitivity_df = pd.DataFrame()
         scenario_df = pd.DataFrame()
         iv_surface = pd.DataFrame()
+        trend_df = pd.DataFrame()
 
-    st.subheader("Live Quote")
+    st.subheader("Dual Pricing Overview")
     quote_cols = st.columns(4)
-    quote_cols[0].metric("Model price", f"{live_price:.4f}")
-    quote_cols[1].metric("Closed-form reference", f"{refs['closed_form_quote']:.4f}")
-    quote_cols[2].metric("Monte Carlo reference", f"{refs['mc_quote']:.4f}")
-    quote_cols[3].metric("Reference sigma", f"{refs['sigma_reference']:.4f}")
+    quote_cols[0].metric("BSM price", f"{refs['closed_form_quote']:.4f}")
+    quote_cols[1].metric(f"Best ML price", f"{live_price:.4f}")
+    quote_cols[2].metric("ML-BSM gap", f"{live_price - refs['closed_form_quote']:.4f}")
+    quote_cols[3].metric("95% CI width", f"{interval['upper'] - interval['lower']:.4f}")
+
+    _render_dual_price_chart(
+        refs["closed_form_quote"],
+        live_price,
+        interval["lower"],
+        interval["upper"],
+        best_model_label=best_model_label,
+    )
+
+    if run_heavy_analysis and not trend_df.empty:
+        st.subheader("Price Trend")
+        _render_trend_chart(trend_df, best_model_label=best_model_label)
+    else:
+        st.info("Enable heavy analysis to view the recent price trend with uncertainty bands.")
 
     st.subheader("Risk Metrics")
     greek_cols = st.columns(4)
@@ -259,12 +366,38 @@ def main(*, set_page_config: bool = True, show_landing_page: bool = True) -> Non
     base_snapshot = {field: base_row.get(field) for field in snapshot_fields if field in base_row.index}
     st.dataframe(pd.DataFrame([base_snapshot]), width="stretch")
 
+    st.subheader("Performance Summary")
+    perf_cols = st.columns(3)
+    ml_pricing_summary = pricing_summary[~pricing_summary["model"].astype(str).str.contains("bsm", case=False, na=False)].copy()
+    best_perf_row = ml_pricing_summary.iloc[0] if not ml_pricing_summary.empty else None
+    if best_perf_row is not None:
+        perf_cols[0].metric("Best ML model", str(best_perf_row.get("model", best_model_label)))
+        perf_cols[1].metric("Test MAE", f"{float(best_perf_row.get('mae', 0.0)):.4f}")
+        perf_cols[2].metric("Test RMSE", f"{float(best_perf_row.get('rmse', 0.0)):.4f}")
+    else:
+        perf_cols[0].metric("Best ML model", best_model_label)
+        perf_cols[1].metric("Test MAE", "N/A")
+        perf_cols[2].metric("Test RMSE", "N/A")
+
+    perf_left, perf_right = st.columns(2)
+    with perf_left:
+        st.caption("Week 6 ML pricing leaderboard")
+        st.dataframe(ml_pricing_summary.head(5), width="stretch", hide_index=True)
+    with perf_right:
+        st.caption("Latest Week 4 BSM benchmark")
+        if not bsm_summary.empty and "group" in bsm_summary.columns:
+            overall_bsm = bsm_summary[bsm_summary["group"].astype(str) == "overall"].head(1)
+            st.dataframe(overall_bsm if not overall_bsm.empty else bsm_summary.head(5), width="stretch", hide_index=True)
+        else:
+            st.info("No BSM benchmark summary CSV was found in data/processed.")
+
     left, right = st.columns(2)
     with left:
         st.subheader("Sensitivity Grid")
         if run_heavy_analysis and not sensitivity_df.empty:
-            st.dataframe(sensitivity_df, width="stretch")
-            st.line_chart(sensitivity_df.pivot_table(index="value", columns="feature", values="model_price", aggfunc="mean"))
+            sensitivity_feature = st.selectbox("Sensitivity feature", sorted(sensitivity_df["feature"].unique().tolist()))
+            st.dataframe(sensitivity_df[sensitivity_df["feature"] == sensitivity_feature], width="stretch")
+            _render_sensitivity_curve(sensitivity_df, sensitivity_feature, best_model_label=best_model_label)
         else:
             st.info("Enable heavy analysis to load sensitivity tables and charts.")
 
