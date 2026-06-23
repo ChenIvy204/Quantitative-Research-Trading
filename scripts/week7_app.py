@@ -270,6 +270,7 @@ def main(*, set_page_config: bool = True, show_landing_page: bool = True) -> Non
 
     toolkit = _toolkit()
     feature_frame, base_row, artifact_path, payload, model = _cached_pricing_context(reference_key, model_name)
+    selected_model_label = model_name
     if preset_name == "Custom":
         contract_overrides = _contract_defaults(
             base_row,
@@ -315,21 +316,22 @@ def main(*, set_page_config: bool = True, show_landing_page: bool = True) -> Non
     st.subheader("Dual Pricing Overview")
     quote_cols = st.columns(4)
     quote_cols[0].metric("BSM price", f"{refs['closed_form_quote']:.4f}")
-    quote_cols[1].metric(f"Best ML price", f"{live_price:.4f}")
+    quote_cols[1].metric(f"Selected ML price", f"{live_price:.4f}")
     quote_cols[2].metric("ML-BSM gap", f"{live_price - refs['closed_form_quote']:.4f}")
     quote_cols[3].metric("95% CI width", f"{interval['upper'] - interval['lower']:.4f}")
+    st.caption(f"Active model: {selected_model_label}")
 
     _render_dual_price_chart(
         refs["closed_form_quote"],
         live_price,
         interval["lower"],
         interval["upper"],
-        best_model_label=best_model_label,
+        best_model_label=selected_model_label,
     )
 
     if not trend_df.empty:
         st.subheader("Price Trend")
-        _render_trend_chart(trend_df, best_model_label=best_model_label)
+        _render_trend_chart(trend_df, best_model_label=selected_model_label)
     else:
         st.info("No trend data was produced for the selected date range.")
 
@@ -367,7 +369,7 @@ def main(*, set_page_config: bool = True, show_landing_page: bool = True) -> Non
         perf_cols[1].metric("Test MAE", f"{float(best_perf_row.get('mae', 0.0)):.4f}")
         perf_cols[2].metric("Test RMSE", f"{float(best_perf_row.get('rmse', 0.0)):.4f}")
     else:
-        perf_cols[0].metric("Best ML model", best_model_label)
+        perf_cols[0].metric("Best ML model", selected_model_label)
         perf_cols[1].metric("Test MAE", "N/A")
         perf_cols[2].metric("Test RMSE", "N/A")
 
@@ -389,7 +391,7 @@ def main(*, set_page_config: bool = True, show_landing_page: bool = True) -> Non
         if not sensitivity_df.empty:
             sensitivity_feature = st.selectbox("Sensitivity feature", sorted(sensitivity_df["feature"].unique().tolist()))
             st.dataframe(sensitivity_df[sensitivity_df["feature"] == sensitivity_feature], width="stretch")
-            _render_sensitivity_curve(sensitivity_df, sensitivity_feature, best_model_label=best_model_label)
+            _render_sensitivity_curve(sensitivity_df, sensitivity_feature, best_model_label=selected_model_label)
         else:
             st.info("No sensitivity data was produced for the selected inputs.")
 
