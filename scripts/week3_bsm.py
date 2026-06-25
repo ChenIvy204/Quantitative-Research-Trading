@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 import logging
 import random
-from dataclasses import asdict, dataclass
+from dataclasses import dataclass
 from datetime import datetime
 from math import erf, exp, log, sqrt
 from pathlib import Path

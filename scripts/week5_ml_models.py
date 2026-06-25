@@ -81,7 +81,7 @@ except ImportError:
 
 try:
     import tensorflow as tf  # type: ignore[import-not-found]
-    HAS_TF = os.environ.get("WEEK6_DISABLE_LSTM") != "1"
+    HAS_TF = tf is not None and os.environ.get("WEEK6_DISABLE_LSTM") != "1"
 except ImportError:
     HAS_TF = False
 
@@ -1077,7 +1077,7 @@ def _train_lstm_with_config(X_train, y_train, X_val, y_val, config):
         ])
         model.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=lr), loss="mse")
         early_stop = EarlyStopping(monitor="val_loss", patience=10, restore_best_weights=True)
-        history = model.fit(
+        model.fit(
             X_tr_seq, y_tr_seq,
             validation_data=(X_vl_seq, y_vl_seq),
             epochs=LSTM_EPOCHS,
@@ -2353,15 +2353,6 @@ def export_markdown_pdf(md_text: str, pdf_path: Path) -> None:
         leading=12,
         spaceAfter=4,
         alignment=TA_LEFT,
-    )
-    mono_style = ParagraphStyle(
-        "MonoStyle",
-        parent=styles["Code"],
-        fontName="Courier",
-        fontSize=8.2,
-        leading=10,
-        leftIndent=6,
-        spaceAfter=6,
     )
 
     def escape_text(text: str) -> str:

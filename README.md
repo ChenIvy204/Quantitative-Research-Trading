@@ -1,134 +1,223 @@
-# Quantitative-Research-Trading
+# Quantitative Research Trading
 
-## API Setup & Testing
+This repository contains a multi-week quantitative research workflow built around JPMorgan market data, macro data, option pricing, feature engineering, and machine learning models.
 
-This repository now includes a small setup for downloading market data and Alpha Vantage news sentiment data and saving the raw CSV outputs locally:
+The project is organized as a reproducible pipeline:
 
-- Yahoo Finance via the `yfinance` package
-- Alpha Vantage `NEWS_SENTIMENT` for market news and sentiment
-- FRED via the FRED REST API
+1. Week 1 collects raw market, macro, dividend, and news data.
+2. Week 2 cleans the data, engineers features, and exports quality reports.
+3. Week 3 replicates the chooser-option model from the paper.
+4. Week 4 evaluates Black-Scholes pricing against a Monte Carlo benchmark.
+5. Week 5 / Week 6 trains machine learning models for volatility prediction and chooser pricing.
+6. Week 7 wraps the pricing workflow in a Streamlit app, FastAPI service, and report view.
 
-### 1. Create a local environment file
+## Repository Layout
 
-Copy [.env.example](.env.example) to `.env` and fill in your API keys.
+- `scripts/` - main pipeline and analysis scripts
+- `configs/` - configuration files used by the pricing experiments
+- `data/raw/` - downloaded source data
+- `data/processed/` - cleaned datasets and generated tables
+- `data/models/` - trained model artifacts
+- `data/reports/` - generated Markdown, PDF, and plot reports
+- `notebooks/` - supporting notebooks for the chooser-option work
+- `docs/` - documentation for feature engineering and preprocessing
+- `streamlit_app.py` - thin launcher for the Week 7 Streamlit app
+- `report_app.py` - standalone Streamlit report view for Week 7 outputs
+- `requirements.txt` - Python dependencies
 
-Required values:
+## Setup
 
-- `ALPHA_VANTAGE_API_KEY`
-- `FRED_API_KEY`
+The project is designed to run locally with Python 3.12, which is also what the GitHub Actions workflow uses.
 
-### 2. Install dependencies
+Install the dependencies:
 
 ```bash
 pip install -r requirements.txt
 ```
 
-### 3. Run the full pipeline
+Create a local `.env` file in the repository root and add the required API keys:
+
+```env
+ALPHA_VANTAGE_API_KEY=your_key_here
+FRED_API_KEY=your_key_here
+```
+
+The pipeline can still run partially if a feed is unavailable, but the Week 1 downloads and downstream sentiment features depend on those keys.
+Yahoo Finance data is collected through `yfinance` and does not require an API key.
+
+## Quick Start
+
+If you are running the project for the first time:
+
+1. Install dependencies with `pip install -r requirements.txt`.
+2. Create a `.env` file with the API keys shown above.
+3. Run the full pipeline with `python scripts/pipeline.py`.
+4. Launch the Week 7 pricing tool with `streamlit run scripts/week7_app.py`.
+
+The first pipeline run downloads source data automatically, then builds the processed datasets, reports, and model artifacts used by the later stages.
+
+## Run the Full Pipeline
+
+Run everything from the repository root:
 
 ```bash
 python scripts/pipeline.py
 ```
 
-This is the only command you need to run locally. It executes the full workflow in order:
+This executes the workflow in order:
 
-- Week 1 data downloads
-- Week 2 preprocessing and feature engineering
+1. Week 1 data downloads
+2. Week 2 preprocessing and feature engineering
+3. Week 3 chooser-option replication
+4. Week 4 BSM evaluation
+5. Week 5 / Week 6 machine learning models
 
-The raw and processed CSV files are written to `data/raw/` and `data/processed/`.
+The pipeline writes versioned datasets, reports, and model artifacts into `data/raw/`, `data/processed/`, `data/models/`, and `data/reports/`.
 
-`scripts/apis.py` and `scripts/preprocess.py` are internal modules used by the pipeline; you do not need to run them separately.
+## Run Individual Components
 
-Week 1 downloads and saves:
+If you only need one stage, you can run it directly:
 
-- Yahoo Finance: daily bars for `JPM` from 2018-01-01 through 2024-12-31
-- Alpha Vantage: recent JPM-related market news and sentiment articles
-- FRED: `DGS10` observations from 2018-01-01 through 2024-12-31
-- FRED: `VIXCLS` observations from 2018-01-01 through 2024-12-31
+```bash
+python scripts/apis.py
+python scripts/preprocess.py
+python scripts/week3_bsm.py
+python scripts/week4_bsm_evaluation.py
+python scripts/week5_ml_models.py
+python scripts/week7_toolkit.py
+```
 
-### 4. Build Week 2 features
+Week 7 has a main UI and two convenience launchers:
 
-This creates versioned outputs such as `data/processed/week2_feature_dataset_v1.0_YYYYMMDD.csv` and `data/processed/week2_feature_dataset_v1.0_YYYYMMDD.parquet` with the optimized feature set after correlation pruning and IC screening.
-It also creates `data/processed/week2_data_quality_report_v1.0_YYYYMMDD.csv` and `data/processed/week2_data_quality_report_v1.0_YYYYMMDD.pdf`.
-The feature engineering optimization outputs are `data/processed/week2_feature_optimization_report_v1.0_YYYYMMDD.csv`, `data/processed/week2_feature_ic_report_v1.0_YYYYMMDD.csv`, `data/processed/week2_feature_correlation_matrix_v1.0_YYYYMMDD.csv`, and `data/processed/week2_feature_optimization_report_v1.0_YYYYMMDD.pdf`.
+```bash
+streamlit run scripts/week7_app.py
+streamlit run streamlit_app.py
+streamlit run report_app.py
+uvicorn scripts.week7_api:app --reload
+```
 
-Week 2 features include:
+`scripts/week7_app.py` is the main pricing UI. `streamlit_app.py` is a root-level convenience launcher for the same app, and `report_app.py` opens a lighter report view that focuses on Week 7 outputs.
 
-- JPM daily returns and rolling volatility
-- Trailing dividend yield for JPM using TTM dividend divided by current price
-- 5-day, 20-day, and 60-day historical volatility features
-- Volatility change features based on the 20-day volatility series
-- Treasury rate changes and momentum
-- VIX changes and JPM-VIX rolling correlation
-- News article counts and rolling 0-1 sentiment scores when news CSV files are available
-- A data quality report with per-feature missing rate, min, max, mean, std, and outlier counts
-- Boxplot-based outlier handling with median replacement on flagged values
-- Explicit missing-value rules for price, macro, dividend, and news-derived features
-- Pearson correlation pruning for features with absolute correlation above 0.8
-- IC screening against future 1-week and 1-month JPM returns using a 0.03 absolute threshold
+## What Each Week Produces
 
-### 5. Automated scheduling
+### Week 1 - Data Collection
 
-The repository includes a GitHub Actions workflow at [.github/workflows/preprocess.yml](.github/workflows/preprocess.yml) that runs the full pipeline daily and on push to `main`.
+Downloads and caches source data such as:
 
-It expects these GitHub Secrets:
+- JPM daily prices from Yahoo Finance
+- JPM-related news sentiment from Alpha Vantage
+- `DGS10` and `VIXCLS` from FRED
+- JPM dividend history
+
+Raw files are written to `data/raw/`.
+
+### Week 2 - Feature Engineering
+
+Builds the modeling table and the associated quality/optimization reports.
+
+Key outputs include the feature dataset and the quality / optimization reports:
+
+- `data/processed/week2_feature_dataset_v1.0_YYYYMMDD.csv`
+- `data/processed/week2_feature_dataset_v1.0_YYYYMMDD.parquet`
+- `data/processed/week2_data_quality_report_v1.0_YYYYMMDD.csv`
+- `data/processed/week2_data_quality_report_v1.0_YYYYMMDD.md`
+- `data/processed/week2_data_quality_report_v1.0_YYYYMMDD.pdf`
+- `data/processed/week2_feature_optimization_report_v1.0_YYYYMMDD.csv`
+- `data/processed/week2_feature_optimization_report_v1.0_YYYYMMDD.pdf`
+
+The full feature reference is documented in [docs/feature_engineering.md](docs/feature_engineering.md).
+
+The engineered feature set includes rolling volatility, dividend yield, Treasury and VIX changes, correlation pruning, IC screening, and news sentiment features when the news feed is available.
+
+### Week 3 - Chooser-Option Replication
+
+Reimplements the Black-Scholes chooser-option setup and compares the simulation results against the paper reference values.
+
+Inputs and supporting files:
+
+- [scripts/week3_bsm.py](scripts/week3_bsm.py)
+- [configs/week3_bsm_parameters.json](configs/week3_bsm_parameters.json)
+- [notebooks/week3_bsm_replication.ipynb](notebooks/week3_bsm_replication.ipynb)
+- [notebooks/week3_bsm_validation.ipynb](notebooks/week3_bsm_validation.ipynb)
+
+Outputs are written to `data/processed/` and `data/reports/` as versioned CSV, Markdown, and PDF files.
+
+### Week 4 - BSM Evaluation
+
+Evaluates analytical Black-Scholes prices against Monte Carlo benchmark prices and runs additional error analysis.
+
+Outputs include:
+
+- `data/processed/week4_bsm_evaluation_daily_v1.0_YYYYMMDD.csv`
+- `data/processed/week4_bsm_error_metrics_v1.0_YYYYMMDD.csv`
+- `data/processed/week4_bsm_sentiment_gap_v1.0_YYYYMMDD.csv`
+- `data/reports/week4_bsm_error_timeseries.png`
+- `data/reports/week4_bsm_regime_boxplot.png`
+- `data/reports/week4_bsm_sentiment_scatter.png`
+- `data/reports/week4_bsm_validation_v1.0_YYYYMMDD.md`
+
+### Week 5 / Week 6 - Machine Learning Models
+
+Trains two model families:
+
+- Approach 1: predict forward volatility and feed it into the chooser pricing formula
+- Approach 2: predict chooser prices directly from market and contract features
+
+Generated artifacts include:
+
+- `data/processed/week6_feature_dataset_v1.0.csv`
+- `data/processed/week6_vol_results_v1.0.csv`
+- `data/processed/week6_pricing_results_v1.0.csv`
+- `data/processed/week6_pricing_stratified_v1.0.csv`
+- `data/processed/week6_model_comparison_v1.0.csv`
+- `data/models/week6_*.joblib`
+- `data/models/week6_*.keras`
+- `data/reports/week6_ml_architecture_v1.0.md`
+- `data/reports/week6_ml_architecture_v1.0.pdf`
+- `data/reports/week6_feature_importance.png`
+- `data/reports/week6_shap_app1_*.png`
+- `data/reports/week6_shap_app2_*.png`
+- `data/reports/week6_vol_prediction_comparison.png`
+- `data/reports/week6_pricing_comparison.png`
+- `data/reports/week6_model_performance.png`
+
+The Week 6 script can optionally use XGBoost, TensorFlow, and SHAP. These are already listed in `requirements.txt`, but the script also degrades gracefully if a specific optional dependency cannot be imported.
+
+### Week 7 - Pricing Tool and API
+
+Adds a small tool layer around the Week 6 chooser model artifacts.
+
+- [scripts/week7_toolkit.py](scripts/week7_toolkit.py) runs the analysis workflow
+- [scripts/week7_app.py](scripts/week7_app.py) provides the Streamlit pricing UI
+- [scripts/week7_api.py](scripts/week7_api.py) exposes a FastAPI service
+
+The Week 7 workflow writes sensitivity, scenario stress, SHAP summary, and report outputs to `data/processed/` and `data/reports/`.
+
+## Automation
+
+There are two GitHub Actions workflows:
+
+- [.github/workflows/preprocess.yml](.github/workflows/preprocess.yml) runs the full pipeline daily at 02:00 UTC and on pushes to `main`
+- [.github/workflows/week7_refresh.yml](.github/workflows/week7_refresh.yml) refreshes market data and rebuilds the Week 7 outputs daily at 03:00 UTC and on pushes to `main`
+- Both workflows can also be triggered manually from the GitHub Actions tab via `workflow_dispatch`
+
+Both workflows expect these repository secrets:
 
 - `ALPHA_VANTAGE_API_KEY`
 - `FRED_API_KEY`
 
-The workflow uploads the processed CSV and Parquet files as artifacts after a successful run.
+If a workflow run fails, the most common cause is a missing secret or an upstream data source issue. The pipeline is written to tolerate some data-source gaps, but it still needs the secrets configured to refresh the raw feeds.
 
-### 6. Week 3 chooser-option replication
+## Configuration
 
-Week 3 adds a reusable Black-Scholes chooser-option implementation and validation outputs based on the paper's JPM parameter table.
+Key configuration files and tuning locations:
 
-- Core code: [scripts/week3_bsm.py](scripts/week3_bsm.py)
-- Paper parameters: [configs/week3_bsm_parameters.json](configs/week3_bsm_parameters.json)
-- Replication notebook: [notebooks/week3_bsm_replication.ipynb](notebooks/week3_bsm_replication.ipynb)
-- Validation notebook: [notebooks/week3_bsm_validation.ipynb](notebooks/week3_bsm_validation.ipynb)
+- `configs/week3_bsm_parameters.json` - paper parameter table used by the Week 3 chooser replication
+- `scripts/week5_ml_models.py` - model definitions, training settings, and feature handling for Weeks 5 and 6
+- `scripts/week7_toolkit.py` - Week 7 pricing workflow, sensitivity analysis, and scenario settings
 
-Run it directly with:
+## Notes
 
-```bash
-python scripts/week3_bsm.py
-```
-
-The script writes a versioned CSV summary under `data/processed/` and a Markdown validation report under `data/reports/`.
-It also writes a PDF version of the same report, with markdown tables rendered as standalone formatted tables instead of raw pipe text.
-The Week 3 report now includes the Table 2 inputs, an explicit simulation setup section with the random seed and GBM drift assumption, a paper reference table, and split comparison tables so the row-by-row differences are easier to read.
-
-### 7. Week 7 analysis and tool prototype
-
-Week 7 adds a lightweight tool layer on top of the Week 6 chooser model:
-
-- `scripts/week7_toolkit.py` runs a sensitivity grid, stress tests, and SHAP-based impact summaries from the latest usable market row
-- `scripts/week7_app.py` provides a basic Streamlit pricing prototype with live quote inputs and refresh control
-- `scripts/week7_api.py` exposes the same functionality as a small FastAPI service for downstream UI or automation
-
-Run the analysis report directly with:
-
-```bash
-python scripts/week7_toolkit.py
-```
-
-Run the Streamlit prototype with:
-
-```bash
-streamlit run scripts/week7_app.py
-```
-
-Run the API prototype with:
-
-```bash
-uvicorn scripts.week7_api:app --reload
-```
-
-The Week 7 workflow writes versioned outputs under `data/processed/` and `data/reports/`, including a sensitivity CSV, scenario stress CSV, SHAP summary CSV, and a Markdown report.
-
-### Feature engineering reference
-
-See [docs/feature_engineering.md](docs/feature_engineering.md) for a concise description of the engineered features and preprocessing steps.
-
-### Notes on API keys
-
-The FRED key you provided is meant for local use only. Do not commit it into the repository.
-Alpha Vantage provides the market news and sentiment feed used by the pipeline.
+- Keep API keys out of version control.
+- Run commands from the repository root so the relative imports resolve correctly.
+- Versioned outputs use the current date stamp, so reruns will create new files instead of overwriting historical results.

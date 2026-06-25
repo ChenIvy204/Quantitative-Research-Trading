@@ -39,25 +39,6 @@ def save_csv(frame: pd.DataFrame, filename: str) -> Path:
     return path
 
 
-def sanitize_filename(value: str) -> str:
-    return "".join(character if character.isalnum() else "_" for character in value).strip("_")
-
-
-def iter_year_windows(start_date: str, end_date_exclusive: str) -> list[tuple[pd.Timestamp, pd.Timestamp]]:
-    start = pd.Timestamp(start_date).normalize()
-    end = pd.Timestamp(end_date_exclusive).normalize()
-    windows: list[tuple[pd.Timestamp, pd.Timestamp]] = []
-
-    current = start
-    while current < end:
-        next_year = pd.Timestamp(year=current.year + 1, month=1, day=1)
-        window_end = min(next_year, end)
-        windows.append((current, window_end))
-        current = window_end
-
-    return windows
-
-
 def get_with_retry(
     url: str,
     *,

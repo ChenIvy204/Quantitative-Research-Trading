@@ -1,0 +1,1151 @@
+scripts/apis.py:54:80: E501 line too long (80 > 79 characters)
+scripts/apis.py:76:80: E501 line too long (121 > 79 characters)
+scripts/apis.py:79:80: E501 line too long (81 > 79 characters)
+scripts/apis.py:81:80: E501 line too long (118 > 79 characters)
+scripts/apis.py:86:80: E501 line too long (83 > 79 characters)
+scripts/apis.py:90:80: E501 line too long (107 > 79 characters)
+scripts/apis.py:93:80: E501 line too long (97 > 79 characters)
+scripts/apis.py:97:80: E501 line too long (95 > 79 characters)
+scripts/apis.py:99:80: E501 line too long (92 > 79 characters)
+scripts/apis.py:107:80: E501 line too long (109 > 79 characters)
+scripts/apis.py:110:80: E501 line too long (95 > 79 characters)
+scripts/apis.py:115:80: E501 line too long (110 > 79 characters)
+scripts/apis.py:118:80: E501 line too long (95 > 79 characters)
+scripts/apis.py:142:80: E501 line too long (83 > 79 characters)
+scripts/apis.py:146:80: E501 line too long (83 > 79 characters)
+scripts/apis.py:149:80: E501 line too long (104 > 79 characters)
+scripts/apis.py:165:80: E501 line too long (98 > 79 characters)
+scripts/apis.py:176:80: E501 line too long (83 > 79 characters)
+scripts/apis.py:189:80: E501 line too long (90 > 79 characters)
+scripts/apis.py:196:80: E501 line too long (100 > 79 characters)
+scripts/apis.py:200:80: E501 line too long (94 > 79 characters)
+scripts/apis.py:209:80: E501 line too long (84 > 79 characters)
+scripts/apis.py:212:80: E501 line too long (87 > 79 characters)
+scripts/apis.py:220:80: E501 line too long (95 > 79 characters)
+scripts/apis.py:221:80: E501 line too long (101 > 79 characters)
+scripts/apis.py:239:80: E501 line too long (83 > 79 characters)
+scripts/apis.py:242:80: E501 line too long (92 > 79 characters)
+scripts/apis.py:244:80: E501 line too long (98 > 79 characters)
+scripts/apis.py:260:80: E501 line too long (86 > 79 characters)
+scripts/apis.py:275:80: E501 line too long (84 > 79 characters)
+scripts/apis.py:283:80: E501 line too long (83 > 79 characters)
+scripts/apis.py:286:80: E501 line too long (90 > 79 characters)
+scripts/apis.py:305:80: E501 line too long (87 > 79 characters)
+scripts/apis.py:306:80: E501 line too long (120 > 79 characters)
+scripts/apis.py:310:80: E501 line too long (130 > 79 characters)
+scripts/apis.py:311:80: E501 line too long (83 > 79 characters)
+scripts/apis.py:312:80: E501 line too long (84 > 79 characters)
+scripts/apis.py:314:80: E501 line too long (94 > 79 characters)
+scripts/apis.py:318:80: E501 line too long (117 > 79 characters)
+scripts/apis.py:320:80: E501 line too long (94 > 79 characters)
+scripts/apis.py:325:80: E501 line too long (98 > 79 characters)
+scripts/apis.py:330:80: E501 line too long (86 > 79 characters)
+scripts/apis.py:334:80: E501 line too long (108 > 79 characters)
+scripts/apis.py:338:80: E501 line too long (99 > 79 characters)
+scripts/apis.py:341:80: E501 line too long (92 > 79 characters)
+scripts/apis.py:357:80: E501 line too long (83 > 79 characters)
+scripts/apis.py:358:80: E501 line too long (88 > 79 characters)
+scripts/apis.py:359:80: E501 line too long (94 > 79 characters)
+scripts/apis.py:375:80: E501 line too long (80 > 79 characters)
+scripts/apis.py:390:80: E501 line too long (89 > 79 characters)
+scripts/apis.py:391:80: E501 line too long (91 > 79 characters)
+scripts/apis.py:396:80: E501 line too long (96 > 79 characters)
+scripts/apis.py:402:11: W292 no newline at end of file
+scripts/preprocess.py:20:80: E501 line too long (86 > 79 characters)
+scripts/preprocess.py:94:80: E501 line too long (115 > 79 characters)
+scripts/preprocess.py:147:80: E501 line too long (129 > 79 characters)
+scripts/preprocess.py:152:80: E501 line too long (88 > 79 characters)
+scripts/preprocess.py:184:80: E501 line too long (80 > 79 characters)
+scripts/preprocess.py:185:80: E501 line too long (90 > 79 characters)
+scripts/preprocess.py:193:80: E501 line too long (125 > 79 characters)
+scripts/preprocess.py:197:80: E501 line too long (115 > 79 characters)
+scripts/preprocess.py:206:80: E501 line too long (81 > 79 characters)
+scripts/preprocess.py:210:80: E501 line too long (107 > 79 characters)
+scripts/preprocess.py:212:80: E501 line too long (105 > 79 characters)
+scripts/preprocess.py:220:80: E501 line too long (98 > 79 characters)
+scripts/preprocess.py:221:80: E501 line too long (126 > 79 characters)
+scripts/preprocess.py:232:80: E501 line too long (102 > 79 characters)
+scripts/preprocess.py:245:80: E501 line too long (126 > 79 characters)
+scripts/preprocess.py:362:80: E501 line too long (114 > 79 characters)
+scripts/preprocess.py:378:80: E501 line too long (106 > 79 characters)
+scripts/preprocess.py:383:80: E501 line too long (106 > 79 characters)
+scripts/preprocess.py:388:80: E501 line too long (106 > 79 characters)
+scripts/preprocess.py:399:80: E501 line too long (112 > 79 characters)
+scripts/preprocess.py:404:80: E501 line too long (96 > 79 characters)
+scripts/preprocess.py:409:80: E501 line too long (104 > 79 characters)
+scripts/preprocess.py:417:80: E501 line too long (117 > 79 characters)
+scripts/preprocess.py:427:80: E501 line too long (111 > 79 characters)
+scripts/preprocess.py:432:80: E501 line too long (99 > 79 characters)
+scripts/preprocess.py:436:80: E501 line too long (86 > 79 characters)
+scripts/preprocess.py:443:80: E501 line too long (86 > 79 characters)
+scripts/preprocess.py:459:80: E501 line too long (117 > 79 characters)
+scripts/preprocess.py:460:80: E501 line too long (81 > 79 characters)
+scripts/preprocess.py:470:80: E501 line too long (80 > 79 characters)
+scripts/preprocess.py:471:80: E501 line too long (104 > 79 characters)
+scripts/preprocess.py:474:80: E501 line too long (95 > 79 characters)
+scripts/preprocess.py:479:80: E501 line too long (144 > 79 characters)
+scripts/preprocess.py:490:80: E501 line too long (100 > 79 characters)
+scripts/preprocess.py:491:80: E501 line too long (91 > 79 characters)
+scripts/preprocess.py:495:80: E501 line too long (107 > 79 characters)
+scripts/preprocess.py:498:80: E501 line too long (80 > 79 characters)
+scripts/preprocess.py:500:80: E501 line too long (81 > 79 characters)
+scripts/preprocess.py:504:80: E501 line too long (123 > 79 characters)
+scripts/preprocess.py:505:80: E501 line too long (110 > 79 characters)
+scripts/preprocess.py:509:80: E501 line too long (99 > 79 characters)
+scripts/preprocess.py:522:80: E501 line too long (95 > 79 characters)
+scripts/preprocess.py:523:80: E501 line too long (83 > 79 characters)
+scripts/preprocess.py:526:80: E501 line too long (101 > 79 characters)
+scripts/preprocess.py:534:80: E501 line too long (132 > 79 characters)
+scripts/preprocess.py:540:80: E501 line too long (98 > 79 characters)
+scripts/preprocess.py:542:80: E501 line too long (92 > 79 characters)
+scripts/preprocess.py:557:80: E501 line too long (110 > 79 characters)
+scripts/preprocess.py:559:80: E501 line too long (124 > 79 characters)
+scripts/preprocess.py:561:80: E501 line too long (96 > 79 characters)
+scripts/preprocess.py:563:80: E501 line too long (80 > 79 characters)
+scripts/preprocess.py:575:80: E501 line too long (180 > 79 characters)
+scripts/preprocess.py:611:80: E501 line too long (99 > 79 characters)
+scripts/preprocess.py:615:80: E501 line too long (163 > 79 characters)
+scripts/preprocess.py:621:80: E501 line too long (85 > 79 characters)
+scripts/preprocess.py:626:80: E501 line too long (108 > 79 characters)
+scripts/preprocess.py:630:80: E501 line too long (86 > 79 characters)
+scripts/preprocess.py:634:80: E501 line too long (98 > 79 characters)
+scripts/preprocess.py:642:80: E501 line too long (106 > 79 characters)
+scripts/preprocess.py:643:80: E501 line too long (106 > 79 characters)
+scripts/preprocess.py:645:80: E501 line too long (147 > 79 characters)
+scripts/preprocess.py:646:80: E501 line too long (149 > 79 characters)
+scripts/preprocess.py:647:80: E501 line too long (99 > 79 characters)
+scripts/preprocess.py:648:80: E501 line too long (100 > 79 characters)
+scripts/preprocess.py:653:80: E501 line too long (89 > 79 characters)
+scripts/preprocess.py:658:80: E501 line too long (94 > 79 characters)
+scripts/preprocess.py:659:80: E501 line too long (95 > 79 characters)
+scripts/preprocess.py:660:80: E501 line too long (97 > 79 characters)
+scripts/preprocess.py:661:80: E501 line too long (96 > 79 characters)
+scripts/preprocess.py:662:80: E501 line too long (101 > 79 characters)
+scripts/preprocess.py:664:80: E501 line too long (83 > 79 characters)
+scripts/preprocess.py:665:80: E501 line too long (154 > 79 characters)
+scripts/preprocess.py:669:80: E501 line too long (134 > 79 characters)
+scripts/preprocess.py:675:80: E501 line too long (80 > 79 characters)
+scripts/preprocess.py:679:80: E501 line too long (98 > 79 characters)
+scripts/preprocess.py:710:80: E501 line too long (105 > 79 characters)
+scripts/preprocess.py:721:80: E501 line too long (83 > 79 characters)
+scripts/preprocess.py:731:80: E501 line too long (146 > 79 characters)
+scripts/preprocess.py:735:80: E501 line too long (142 > 79 characters)
+scripts/preprocess.py:741:80: E501 line too long (351 > 79 characters)
+scripts/preprocess.py:746:80: E501 line too long (83 > 79 characters)
+scripts/preprocess.py:751:80: E501 line too long (108 > 79 characters)
+scripts/preprocess.py:752:80: E501 line too long (121 > 79 characters)
+scripts/preprocess.py:755:80: E501 line too long (129 > 79 characters)
+scripts/preprocess.py:765:80: E501 line too long (110 > 79 characters)
+scripts/preprocess.py:770:80: E501 line too long (92 > 79 characters)
+scripts/preprocess.py:772:80: E501 line too long (80 > 79 characters)
+scripts/preprocess.py:779:80: E501 line too long (91 > 79 characters)
+scripts/preprocess.py:790:80: E501 line too long (91 > 79 characters)
+scripts/preprocess.py:795:80: E501 line too long (83 > 79 characters)
+scripts/preprocess.py:802:80: E501 line too long (85 > 79 characters)
+scripts/preprocess.py:804:80: E501 line too long (85 > 79 characters)
+scripts/preprocess.py:816:80: E501 line too long (95 > 79 characters)
+scripts/preprocess.py:819:80: E501 line too long (130 > 79 characters)
+scripts/preprocess.py:828:80: E501 line too long (84 > 79 characters)
+scripts/preprocess.py:837:80: E501 line too long (92 > 79 characters)
+scripts/preprocess.py:839:80: E501 line too long (97 > 79 characters)
+scripts/preprocess.py:850:80: E501 line too long (102 > 79 characters)
+scripts/preprocess.py:853:80: E501 line too long (87 > 79 characters)
+scripts/preprocess.py:877:80: E501 line too long (120 > 79 characters)
+scripts/preprocess.py:882:80: E501 line too long (120 > 79 characters)
+scripts/preprocess.py:888:80: E501 line too long (92 > 79 characters)
+scripts/preprocess.py:898:80: E501 line too long (96 > 79 characters)
+scripts/preprocess.py:912:80: E501 line too long (98 > 79 characters)
+scripts/preprocess.py:927:80: E501 line too long (108 > 79 characters)
+scripts/preprocess.py:931:80: E501 line too long (81 > 79 characters)
+scripts/preprocess.py:952:80: E501 line too long (100 > 79 characters)
+scripts/preprocess.py:979:80: E501 line too long (115 > 79 characters)
+scripts/preprocess.py:999:80: E501 line too long (90 > 79 characters)
+scripts/preprocess.py:1004:80: E501 line too long (85 > 79 characters)
+scripts/preprocess.py:1008:80: E501 line too long (95 > 79 characters)
+scripts/preprocess.py:1013:80: E501 line too long (101 > 79 characters)
+scripts/preprocess.py:1014:80: E501 line too long (102 > 79 characters)
+scripts/preprocess.py:1040:80: E501 line too long (96 > 79 characters)
+scripts/preprocess.py:1052:80: E501 line too long (118 > 79 characters)
+scripts/preprocess.py:1057:80: E501 line too long (112 > 79 characters)
+scripts/preprocess.py:1062:80: E501 line too long (123 > 79 characters)
+scripts/preprocess.py:1067:80: E501 line too long (138 > 79 characters)
+scripts/preprocess.py:1070:80: E501 line too long (88 > 79 characters)
+scripts/preprocess.py:1072:80: E501 line too long (91 > 79 characters)
+scripts/preprocess.py:1074:80: E501 line too long (87 > 79 characters)
+scripts/preprocess.py:1076:80: E501 line too long (94 > 79 characters)
+scripts/preprocess.py:1078:80: E501 line too long (103 > 79 characters)
+scripts/preprocess.py:1080:80: E501 line too long (111 > 79 characters)
+scripts/preprocess.py:1100:80: E501 line too long (114 > 79 characters)
+scripts/preprocess.py:1104:80: E501 line too long (94 > 79 characters)
+scripts/preprocess.py:1144:80: E501 line too long (84 > 79 characters)
+scripts/preprocess.py:1167:80: E501 line too long (87 > 79 characters)
+scripts/preprocess.py:1168:80: E501 line too long (114 > 79 characters)
+scripts/preprocess.py:1177:80: E501 line too long (127 > 79 characters)
+scripts/preprocess.py:1179:80: E501 line too long (91 > 79 characters)
+scripts/preprocess.py:1189:80: E501 line too long (87 > 79 characters)
+scripts/preprocess.py:1194:80: E501 line too long (83 > 79 characters)
+scripts/preprocess.py:1196:80: E501 line too long (81 > 79 characters)
+scripts/preprocess.py:1199:80: E501 line too long (85 > 79 characters)
+scripts/preprocess.py:1201:80: E501 line too long (89 > 79 characters)
+scripts/preprocess.py:1203:80: E501 line too long (91 > 79 characters)
+scripts/preprocess.py:1212:80: E501 line too long (84 > 79 characters)
+scripts/preprocess.py:1213:80: E501 line too long (87 > 79 characters)
+scripts/preprocess.py:1214:80: E501 line too long (86 > 79 characters)
+scripts/preprocess.py:1231:80: E501 line too long (87 > 79 characters)
+scripts/preprocess.py:1234:80: E501 line too long (81 > 79 characters)
+scripts/preprocess.py:1237:80: E501 line too long (122 > 79 characters)
+scripts/preprocess.py:1251:80: E501 line too long (129 > 79 characters)
+scripts/preprocess.py:1253:80: E501 line too long (91 > 79 characters)
+scripts/preprocess.py:1258:80: E501 line too long (80 > 79 characters)
+scripts/preprocess.py:1259:80: E501 line too long (83 > 79 characters)
+scripts/preprocess.py:1260:80: E501 line too long (82 > 79 characters)
+scripts/preprocess.py:1277:80: E501 line too long (83 > 79 characters)
+scripts/preprocess.py:1283:80: E501 line too long (118 > 79 characters)
+scripts/preprocess.py:1298:80: E501 line too long (129 > 79 characters)
+scripts/preprocess.py:1300:80: E501 line too long (91 > 79 characters)
+scripts/preprocess.py:1315:80: E501 line too long (118 > 79 characters)
+scripts/preprocess.py:1318:80: E501 line too long (91 > 79 characters)
+scripts/preprocess.py:1319:80: E501 line too long (118 > 79 characters)
+scripts/preprocess.py:1326:80: E501 line too long (91 > 79 characters)
+scripts/preprocess.py:1340:80: E501 line too long (122 > 79 characters)
+scripts/preprocess.py:1371:80: E501 line too long (90 > 79 characters)
+scripts/preprocess.py:1386:80: E501 line too long (92 > 79 characters)
+scripts/preprocess.py:1392:80: E501 line too long (105 > 79 characters)
+scripts/preprocess.py:1398:80: E501 line too long (128 > 79 characters)
+scripts/preprocess.py:1406:80: E501 line too long (90 > 79 characters)
+scripts/preprocess.py:1423:80: E501 line too long (101 > 79 characters)
+scripts/preprocess.py:1425:80: E501 line too long (90 > 79 characters)
+scripts/preprocess.py:1427:80: E501 line too long (115 > 79 characters)
+scripts/preprocess.py:1440:80: E501 line too long (83 > 79 characters)
+scripts/preprocess.py:1446:80: E501 line too long (80 > 79 characters)
+scripts/preprocess.py:1447:80: E501 line too long (83 > 79 characters)
+scripts/preprocess.py:1448:80: E501 line too long (86 > 79 characters)
+scripts/preprocess.py:1449:80: E501 line too long (84 > 79 characters)
+scripts/preprocess.py:1450:80: E501 line too long (86 > 79 characters)
+scripts/preprocess.py:1452:80: E501 line too long (95 > 79 characters)
+scripts/preprocess.py:1454:80: E501 line too long (81 > 79 characters)
+scripts/preprocess.py:1458:80: E501 line too long (101 > 79 characters)
+scripts/preprocess.py:1460:80: E501 line too long (86 > 79 characters)
+scripts/preprocess.py:1464:80: E501 line too long (87 > 79 characters)
+scripts/preprocess.py:1486:80: E501 line too long (91 > 79 characters)
+scripts/preprocess.py:1489:80: E501 line too long (83 > 79 characters)
+scripts/preprocess.py:1491:80: E501 line too long (87 > 79 characters)
+scripts/preprocess.py:1493:80: E501 line too long (85 > 79 characters)
+scripts/preprocess.py:1495:80: E501 line too long (99 > 79 characters)
+scripts/preprocess.py:1496:80: E501 line too long (104 > 79 characters)
+scripts/preprocess.py:1497:80: E501 line too long (97 > 79 characters)
+scripts/preprocess.py:1499:80: E501 line too long (89 > 79 characters)
+scripts/preprocess.py:1500:80: E501 line too long (92 > 79 characters)
+scripts/preprocess.py:1501:80: E501 line too long (85 > 79 characters)
+scripts/preprocess.py:1503:80: E501 line too long (80 > 79 characters)
+scripts/preprocess.py:1504:80: E501 line too long (112 > 79 characters)
+scripts/preprocess.py:1511:80: E501 line too long (97 > 79 characters)
+scripts/preprocess.py:1512:80: E501 line too long (99 > 79 characters)
+scripts/preprocess.py:1525:80: E501 line too long (94 > 79 characters)
+scripts/preprocess.py:1528:80: E501 line too long (97 > 79 characters)
+scripts/preprocess.py:1534:80: E501 line too long (152 > 79 characters)
+scripts/preprocess.py:1540:80: E501 line too long (111 > 79 characters)
+scripts/preprocess.py:1541:80: E501 line too long (94 > 79 characters)
+scripts/preprocess.py:1547:80: E501 line too long (148 > 79 characters)
+scripts/preprocess.py:1555:80: E501 line too long (80 > 79 characters)
+scripts/preprocess.py:1564:80: E501 line too long (80 > 79 characters)
+scripts/preprocess.py:1572:80: E501 line too long (139 > 79 characters)
+scripts/preprocess.py:1579:80: E501 line too long (103 > 79 characters)
+scripts/preprocess.py:1581:80: E501 line too long (101 > 79 characters)
+scripts/preprocess.py:1584:80: E501 line too long (120 > 79 characters)
+scripts/preprocess.py:1588:80: E501 line too long (89 > 79 characters)
+scripts/preprocess.py:1605:80: E501 line too long (152 > 79 characters)
+scripts/preprocess.py:1611:80: E501 line too long (162 > 79 characters)
+scripts/preprocess.py:1616:80: E501 line too long (125 > 79 characters)
+scripts/preprocess.py:1633:80: E501 line too long (107 > 79 characters)
+scripts/preprocess.py:1637:80: E501 line too long (96 > 79 characters)
+scripts/preprocess.py:1650:80: E501 line too long (99 > 79 characters)
+scripts/preprocess.py:1653:80: E501 line too long (99 > 79 characters)
+scripts/preprocess.py:1655:80: E501 line too long (84 > 79 characters)
+scripts/preprocess.py:1657:80: E501 line too long (122 > 79 characters)
+scripts/preprocess.py:1660:80: E501 line too long (125 > 79 characters)
+scripts/preprocess.py:1664:80: E501 line too long (107 > 79 characters)
+scripts/preprocess.py:1666:80: E501 line too long (164 > 79 characters)
+scripts/preprocess.py:1668:80: E501 line too long (142 > 79 characters)
+scripts/preprocess.py:1669:80: E501 line too long (116 > 79 characters)
+scripts/preprocess.py:1680:80: E501 line too long (204 > 79 characters)
+scripts/preprocess.py:1681:80: E501 line too long (146 > 79 characters)
+scripts/preprocess.py:1682:80: E501 line too long (143 > 79 characters)
+scripts/preprocess.py:1683:80: E501 line too long (172 > 79 characters)
+scripts/preprocess.py:1684:80: E501 line too long (151 > 79 characters)
+scripts/preprocess.py:1685:80: E501 line too long (98 > 79 characters)
+scripts/preprocess.py:1688:80: E501 line too long (89 > 79 characters)
+scripts/preprocess.py:1689:80: E501 line too long (98 > 79 characters)
+scripts/preprocess.py:1690:80: E501 line too long (174 > 79 characters)
+scripts/preprocess.py:1691:80: E501 line too long (143 > 79 characters)
+scripts/preprocess.py:1700:9: F541 f-string is missing placeholders
+scripts/preprocess.py:1701:9: F541 f-string is missing placeholders
+scripts/preprocess.py:1701:80: E501 line too long (80 > 79 characters)
+scripts/preprocess.py:1705:80: E501 line too long (142 > 79 characters)
+scripts/preprocess.py:1706:80: E501 line too long (97 > 79 characters)
+scripts/preprocess.py:1707:80: E501 line too long (121 > 79 characters)
+scripts/preprocess.py:1712:80: E501 line too long (139 > 79 characters)
+scripts/preprocess.py:1713:80: E501 line too long (81 > 79 characters)
+scripts/preprocess.py:1718:80: E501 line too long (94 > 79 characters)
+scripts/preprocess.py:1722:80: E501 line too long (120 > 79 characters)
+scripts/preprocess.py:1724:80: E501 line too long (138 > 79 characters)
+scripts/preprocess.py:1726:80: E501 line too long (130 > 79 characters)
+scripts/preprocess.py:1732:80: E501 line too long (138 > 79 characters)
+scripts/preprocess.py:1733:80: E501 line too long (184 > 79 characters)
+scripts/preprocess.py:1734:80: E501 line too long (216 > 79 characters)
+scripts/preprocess.py:1736:80: E501 line too long (94 > 79 characters)
+scripts/preprocess.py:1741:80: E501 line too long (284 > 79 characters)
+scripts/preprocess.py:1742:80: E501 line too long (98 > 79 characters)
+scripts/preprocess.py:1745:80: E501 line too long (287 > 79 characters)
+scripts/preprocess.py:1746:80: E501 line too long (86 > 79 characters)
+scripts/preprocess.py:1749:80: E501 line too long (461 > 79 characters)
+scripts/preprocess.py:1751:80: E501 line too long (211 > 79 characters)
+scripts/preprocess.py:1753:80: E501 line too long (182 > 79 characters)
+scripts/preprocess.py:1756:80: E501 line too long (354 > 79 characters)
+scripts/preprocess.py:1762:80: E501 line too long (240 > 79 characters)
+scripts/preprocess.py:1772:80: E501 line too long (93 > 79 characters)
+scripts/preprocess.py:1777:80: E501 line too long (83 > 79 characters)
+scripts/preprocess.py:1778:80: E501 line too long (86 > 79 characters)
+scripts/preprocess.py:1779:80: E501 line too long (87 > 79 characters)
+scripts/preprocess.py:1780:80: E501 line too long (97 > 79 characters)
+scripts/preprocess.py:1781:80: E501 line too long (87 > 79 characters)
+scripts/preprocess.py:1782:80: E501 line too long (86 > 79 characters)
+scripts/preprocess.py:1784:80: E501 line too long (80 > 79 characters)
+scripts/preprocess.py:1787:80: E501 line too long (131 > 79 characters)
+scripts/preprocess.py:1791:80: E501 line too long (88 > 79 characters)
+scripts/preprocess.py:1792:80: E501 line too long (103 > 79 characters)
+scripts/preprocess.py:1794:80: E501 line too long (82 > 79 characters)
+scripts/preprocess.py:1795:80: E501 line too long (98 > 79 characters)
+scripts/preprocess.py:1796:80: E501 line too long (88 > 79 characters)
+scripts/preprocess.py:1797:80: E501 line too long (116 > 79 characters)
+scripts/preprocess.py:1798:80: E501 line too long (160 > 79 characters)
+scripts/preprocess.py:1799:80: E501 line too long (149 > 79 characters)
+scripts/preprocess.py:1800:80: E501 line too long (178 > 79 characters)
+scripts/preprocess.py:1801:80: E501 line too long (140 > 79 characters)
+scripts/preprocess.py:1802:80: E501 line too long (120 > 79 characters)
+scripts/preprocess.py:1804:80: E501 line too long (101 > 79 characters)
+scripts/preprocess.py:1808:80: E501 line too long (84 > 79 characters)
+scripts/preprocess.py:1820:80: E501 line too long (83 > 79 characters)
+scripts/preprocess.py:1821:80: E501 line too long (87 > 79 characters)
+scripts/preprocess.py:1824:80: E501 line too long (89 > 79 characters)
+scripts/preprocess.py:1825:80: E501 line too long (106 > 79 characters)
+scripts/preprocess.py:1826:80: E501 line too long (89 > 79 characters)
+scripts/preprocess.py:1828:80: E501 line too long (81 > 79 characters)
+scripts/week3_bsm.py:15:1: E402 module level import not at top of file
+scripts/week3_bsm.py:17:1: E402 module level import not at top of file
+scripts/week3_bsm.py:35:80: E501 line too long (103 > 79 characters)
+scripts/week3_bsm.py:36:80: E501 line too long (104 > 79 characters)
+scripts/week3_bsm.py:37:80: E501 line too long (104 > 79 characters)
+scripts/week3_bsm.py:38:80: E501 line too long (102 > 79 characters)
+scripts/week3_bsm.py:39:80: E501 line too long (102 > 79 characters)
+scripts/week3_bsm.py:40:80: E501 line too long (102 > 79 characters)
+scripts/week3_bsm.py:41:80: E501 line too long (102 > 79 characters)
+scripts/week3_bsm.py:42:80: E501 line too long (104 > 79 characters)
+scripts/week3_bsm.py:43:80: E501 line too long (102 > 79 characters)
+scripts/week3_bsm.py:44:80: E501 line too long (104 > 79 characters)
+scripts/week3_bsm.py:98:80: E501 line too long (82 > 79 characters)
+scripts/week3_bsm.py:110:80: E501 line too long (111 > 79 characters)
+scripts/week3_bsm.py:113:80: E501 line too long (84 > 79 characters)
+scripts/week3_bsm.py:114:80: E501 line too long (88 > 79 characters)
+scripts/week3_bsm.py:126:80: E501 line too long (111 > 79 characters)
+scripts/week3_bsm.py:129:80: E501 line too long (87 > 79 characters)
+scripts/week3_bsm.py:130:80: E501 line too long (87 > 79 characters)
+scripts/week3_bsm.py:143:80: E501 line too long (86 > 79 characters)
+scripts/week3_bsm.py:145:80: E501 line too long (83 > 79 characters)
+scripts/week3_bsm.py:147:80: E501 line too long (81 > 79 characters)
+scripts/week3_bsm.py:148:80: E501 line too long (98 > 79 characters)
+scripts/week3_bsm.py:221:80: E501 line too long (96 > 79 characters)
+scripts/week3_bsm.py:227:80: E501 line too long (92 > 79 characters)
+scripts/week3_bsm.py:228:80: E501 line too long (106 > 79 characters)
+scripts/week3_bsm.py:231:25: E127 continuation line over-indented for visual indent
+scripts/week3_bsm.py:231:80: E501 line too long (88 > 79 characters)
+scripts/week3_bsm.py:236:80: E501 line too long (120 > 79 characters)
+scripts/week3_bsm.py:239:25: E127 continuation line over-indented for visual indent
+scripts/week3_bsm.py:239:80: E501 line too long (88 > 79 characters)
+scripts/week3_bsm.py:244:80: E501 line too long (120 > 79 characters)
+scripts/week3_bsm.py:247:25: E127 continuation line over-indented for visual indent
+scripts/week3_bsm.py:247:80: E501 line too long (88 > 79 characters)
+scripts/week3_bsm.py:251:80: E501 line too long (92 > 79 characters)
+scripts/week3_bsm.py:252:80: E501 line too long (102 > 79 characters)
+scripts/week3_bsm.py:255:25: E127 continuation line over-indented for visual indent
+scripts/week3_bsm.py:255:80: E501 line too long (88 > 79 characters)
+scripts/week3_bsm.py:265:80: E501 line too long (114 > 79 characters)
+scripts/week3_bsm.py:266:80: E501 line too long (112 > 79 characters)
+scripts/week3_bsm.py:272:80: E501 line too long (125 > 79 characters)
+scripts/week3_bsm.py:275:80: E501 line too long (84 > 79 characters)
+scripts/week3_bsm.py:282:80: E501 line too long (111 > 79 characters)
+scripts/week3_bsm.py:284:80: E501 line too long (100 > 79 characters)
+scripts/week3_bsm.py:285:80: E501 line too long (145 > 79 characters)
+scripts/week3_bsm.py:289:1: E122 continuation line missing indentation or outdented
+scripts/week3_bsm.py:290:1: E122 continuation line missing indentation or outdented
+scripts/week3_bsm.py:291:1: E122 continuation line missing indentation or outdented
+scripts/week3_bsm.py:305:80: E501 line too long (128 > 79 characters)
+scripts/week3_bsm.py:314:80: E501 line too long (87 > 79 characters)
+scripts/week3_bsm.py:316:80: E501 line too long (87 > 79 characters)
+scripts/week3_bsm.py:345:80: E501 line too long (82 > 79 characters)
+scripts/week3_bsm.py:346:80: E501 line too long (82 > 79 characters)
+scripts/week3_bsm.py:347:80: E501 line too long (81 > 79 characters)
+scripts/week3_bsm.py:366:80: E501 line too long (116 > 79 characters)
+scripts/week3_bsm.py:370:80: E501 line too long (93 > 79 characters)
+scripts/week3_bsm.py:371:80: E501 line too long (82 > 79 characters)
+scripts/week3_bsm.py:430:80: E501 line too long (89 > 79 characters)
+scripts/week3_bsm.py:433:80: E501 line too long (90 > 79 characters)
+scripts/week3_bsm.py:436:80: E501 line too long (101 > 79 characters)
+scripts/week3_bsm.py:446:80: E501 line too long (82 > 79 characters)
+scripts/week3_bsm.py:454:1: W293 blank line contains whitespace
+scripts/week3_bsm.py:458:80: E501 line too long (121 > 79 characters)
+scripts/week3_bsm.py:462:80: E501 line too long (129 > 79 characters)
+scripts/week3_bsm.py:463:1: W293 blank line contains whitespace
+scripts/week3_bsm.py:466:1: W293 blank line contains whitespace
+scripts/week3_bsm.py:467:80: E501 line too long (85 > 79 characters)
+scripts/week3_bsm.py:480:1: W293 blank line contains whitespace
+scripts/week3_bsm.py:483:1: W293 blank line contains whitespace
+scripts/week3_bsm.py:486:1: W293 blank line contains whitespace
+scripts/week3_bsm.py:490:1: W293 blank line contains whitespace
+scripts/week3_bsm.py:494:1: W293 blank line contains whitespace
+scripts/week3_bsm.py:495:80: E501 line too long (94 > 79 characters)
+scripts/week3_bsm.py:498:1: W293 blank line contains whitespace
+scripts/week3_bsm.py:510:80: E501 line too long (188 > 79 characters)
+scripts/week3_bsm.py:511:1: W293 blank line contains whitespace
+scripts/week3_bsm.py:514:80: E501 line too long (151 > 79 characters)
+scripts/week3_bsm.py:516:1: W293 blank line contains whitespace
+scripts/week3_bsm.py:518:5: E306 expected 1 blank line before a nested definition, found 0
+scripts/week3_bsm.py:520:80: E501 line too long (81 > 79 characters)
+scripts/week3_bsm.py:521:80: E501 line too long (146 > 79 characters)
+scripts/week3_bsm.py:522:1: W293 blank line contains whitespace
+scripts/week3_bsm.py:523:80: E501 line too long (81 > 79 characters)
+scripts/week3_bsm.py:524:80: E501 line too long (92 > 79 characters)
+scripts/week3_bsm.py:526:1: W293 blank line contains whitespace
+scripts/week3_bsm.py:528:1: W293 blank line contains whitespace
+scripts/week3_bsm.py:531:80: E501 line too long (97 > 79 characters)
+scripts/week3_bsm.py:532:1: W293 blank line contains whitespace
+scripts/week3_bsm.py:540:1: W293 blank line contains whitespace
+scripts/week3_bsm.py:547:80: E501 line too long (101 > 79 characters)
+scripts/week3_bsm.py:557:1: W293 blank line contains whitespace
+scripts/week3_bsm.py:561:1: W293 blank line contains whitespace
+scripts/week3_bsm.py:564:1: W293 blank line contains whitespace
+scripts/week3_bsm.py:568:1: W293 blank line contains whitespace
+scripts/week3_bsm.py:573:80: E501 line too long (84 > 79 characters)
+scripts/week3_bsm.py:574:80: E501 line too long (96 > 79 characters)
+scripts/week3_bsm.py:579:1: W293 blank line contains whitespace
+scripts/week3_bsm.py:584:1: W293 blank line contains whitespace
+scripts/week3_bsm.py:586:80: E501 line too long (88 > 79 characters)
+scripts/week3_bsm.py:590:1: W293 blank line contains whitespace
+scripts/week3_bsm.py:594:1: W293 blank line contains whitespace
+scripts/week3_bsm.py:606:1: W293 blank line contains whitespace
+scripts/week3_bsm.py:622:1: W293 blank line contains whitespace
+scripts/week3_bsm.py:625:1: W293 blank line contains whitespace
+scripts/week3_bsm.py:627:80: E501 line too long (80 > 79 characters)
+scripts/week3_bsm.py:629:1: W293 blank line contains whitespace
+scripts/week3_bsm.py:634:1: W293 blank line contains whitespace
+scripts/week3_bsm.py:640:1: W293 blank line contains whitespace
+scripts/week3_bsm.py:654:1: W293 blank line contains whitespace
+scripts/week3_bsm.py:670:1: W293 blank line contains whitespace
+scripts/week3_bsm.py:673:1: W293 blank line contains whitespace
+scripts/week3_bsm.py:676:80: E501 line too long (108 > 79 characters)
+scripts/week3_bsm.py:678:1: W293 blank line contains whitespace
+scripts/week3_bsm.py:679:80: E501 line too long (90 > 79 characters)
+scripts/week3_bsm.py:681:80: E501 line too long (102 > 79 characters)
+scripts/week3_bsm.py:682:80: E501 line too long (121 > 79 characters)
+scripts/week3_bsm.py:683:80: E501 line too long (127 > 79 characters)
+scripts/week3_bsm.py:687:1: W293 blank line contains whitespace
+scripts/week3_bsm.py:693:1: W293 blank line contains whitespace
+scripts/week3_bsm.py:716:1: W293 blank line contains whitespace
+scripts/week3_bsm.py:717:80: E501 line too long (80 > 79 characters)
+scripts/week3_bsm.py:726:80: E501 line too long (167 > 79 characters)
+scripts/week3_bsm.py:735:80: E501 line too long (132 > 79 characters)
+scripts/week3_bsm.py:736:1: W293 blank line contains whitespace
+scripts/week3_bsm.py:737:80: E501 line too long (130 > 79 characters)
+scripts/week3_bsm.py:738:80: E501 line too long (131 > 79 characters)
+scripts/week3_bsm.py:739:1: W293 blank line contains whitespace
+scripts/week3_bsm.py:741:80: E501 line too long (80 > 79 characters)
+scripts/week3_bsm.py:743:80: E501 line too long (108 > 79 characters)
+scripts/week3_bsm.py:746:1: W293 blank line contains whitespace
+scripts/week3_bsm.py:750:1: W293 blank line contains whitespace
+scripts/week3_bsm.py:790:80: E501 line too long (96 > 79 characters)
+scripts/week3_bsm.py:798:80: E501 line too long (83 > 79 characters)
+scripts/week3_bsm.py:799:80: E501 line too long (95 > 79 characters)
+scripts/week3_bsm.py:810:1: W293 blank line contains whitespace
+scripts/week3_bsm.py:820:80: E501 line too long (100 > 79 characters)
+scripts/week3_bsm.py:821:80: E501 line too long (97 > 79 characters)
+scripts/week3_bsm.py:822:80: E501 line too long (123 > 79 characters)
+scripts/week3_bsm.py:823:80: E501 line too long (125 > 79 characters)
+scripts/week3_bsm.py:826:80: E501 line too long (83 > 79 characters)
+scripts/week3_bsm.py:832:80: E501 line too long (96 > 79 characters)
+scripts/week3_bsm.py:833:80: E501 line too long (93 > 79 characters)
+scripts/week3_bsm.py:834:80: E501 line too long (119 > 79 characters)
+scripts/week3_bsm.py:835:80: E501 line too long (119 > 79 characters)
+scripts/week3_bsm.py:838:80: E501 line too long (85 > 79 characters)
+scripts/week3_bsm.py:844:80: E501 line too long (104 > 79 characters)
+scripts/week3_bsm.py:845:80: E501 line too long (101 > 79 characters)
+scripts/week3_bsm.py:846:80: E501 line too long (127 > 79 characters)
+scripts/week3_bsm.py:847:80: E501 line too long (133 > 79 characters)
+scripts/week3_bsm.py:850:80: E501 line too long (87 > 79 characters)
+scripts/week3_bsm.py:856:80: E501 line too long (104 > 79 characters)
+scripts/week3_bsm.py:857:80: E501 line too long (101 > 79 characters)
+scripts/week3_bsm.py:858:80: E501 line too long (127 > 79 characters)
+scripts/week3_bsm.py:859:80: E501 line too long (133 > 79 characters)
+scripts/week3_bsm.py:862:80: E501 line too long (87 > 79 characters)
+scripts/week3_bsm.py:901:80: E501 line too long (82 > 79 characters)
+scripts/week3_bsm.py:902:80: E501 line too long (84 > 79 characters)
+scripts/week3_bsm.py:908:80: E501 line too long (108 > 79 characters)
+scripts/week3_bsm.py:916:80: E501 line too long (87 > 79 characters)
+scripts/week3_bsm.py:917:80: E501 line too long (89 > 79 characters)
+scripts/week3_bsm.py:918:1: W293 blank line contains whitespace
+scripts/week3_bsm.py:922:80: E501 line too long (237 > 79 characters)
+scripts/week3_bsm.py:930:80: E501 line too long (87 > 79 characters)
+scripts/week3_bsm.py:941:80: E501 line too long (115 > 79 characters)
+scripts/week3_bsm.py:950:80: E501 line too long (390 > 79 characters)
+scripts/week3_bsm.py:956:80: E501 line too long (111 > 79 characters)
+scripts/week3_bsm.py:962:80: E501 line too long (363 > 79 characters)
+scripts/week3_bsm.py:968:80: E501 line too long (234 > 79 characters)
+scripts/week3_bsm.py:970:80: E501 line too long (578 > 79 characters)
+scripts/week3_bsm.py:972:80: E501 line too long (186 > 79 characters)
+scripts/week3_bsm.py:976:80: E501 line too long (351 > 79 characters)
+scripts/week3_bsm.py:978:80: E501 line too long (524 > 79 characters)
+scripts/week3_bsm.py:980:80: E501 line too long (125 > 79 characters)
+scripts/week3_bsm.py:984:80: E501 line too long (175 > 79 characters)
+scripts/week3_bsm.py:986:80: E501 line too long (562 > 79 characters)
+scripts/week3_bsm.py:988:80: E501 line too long (128 > 79 characters)
+scripts/week3_bsm.py:992:80: E501 line too long (246 > 79 characters)
+scripts/week3_bsm.py:994:80: E501 line too long (457 > 79 characters)
+scripts/week3_bsm.py:1000:80: E501 line too long (203 > 79 characters)
+scripts/week3_bsm.py:1006:80: E501 line too long (178 > 79 characters)
+scripts/week3_bsm.py:1012:80: E501 line too long (946 > 79 characters)
+scripts/week3_bsm.py:1042:80: E501 line too long (149 > 79 characters)
+scripts/week3_bsm.py:1046:80: E501 line too long (141 > 79 characters)
+scripts/week3_bsm.py:1050:80: E501 line too long (241 > 79 characters)
+scripts/week3_bsm.py:1051:80: E501 line too long (182 > 79 characters)
+scripts/week3_bsm.py:1052:80: E501 line too long (196 > 79 characters)
+scripts/week3_bsm.py:1053:80: E501 line too long (105 > 79 characters)
+scripts/week3_bsm.py:1075:80: E501 line too long (113 > 79 characters)
+scripts/week3_bsm.py:1081:80: E501 line too long (105 > 79 characters)
+scripts/week3_bsm.py:1085:80: E501 line too long (89 > 79 characters)
+scripts/week3_bsm.py:1087:80: E501 line too long (95 > 79 characters)
+scripts/week3_bsm.py:1091:80: E501 line too long (97 > 79 characters)
+scripts/week3_bsm.py:1092:80: E501 line too long (95 > 79 characters)
+scripts/week3_bsm.py:1093:80: E501 line too long (91 > 79 characters)
+scripts/week3_bsm.py:1102:80: E501 line too long (93 > 79 characters)
+scripts/week3_bsm.py:1106:80: E501 line too long (93 > 79 characters)
+scripts/week3_bsm.py:1108:80: E501 line too long (88 > 79 characters)
+scripts/week3_bsm.py:1109:1: W293 blank line contains whitespace
+scripts/week3_bsm.py:1113:1: W293 blank line contains whitespace
+scripts/week3_bsm.py:1115:80: E501 line too long (98 > 79 characters)
+scripts/week3_bsm.py:1117:80: E501 line too long (92 > 79 characters)
+scripts/week3_bsm.py:1119:1: W293 blank line contains whitespace
+scripts/week3_bsm.py:1121:80: E501 line too long (91 > 79 characters)
+scripts/week3_bsm.py:1123:80: E501 line too long (124 > 79 characters)
+scripts/week3_bsm.py:1133:80: E501 line too long (90 > 79 characters)
+scripts/week3_bsm.py:1134:1: W293 blank line contains whitespace
+scripts/week3_bsm.py:1138:80: E501 line too long (102 > 79 characters)
+scripts/week3_bsm.py:1142:24: W291 trailing whitespace
+scripts/week3_bsm.py:1143:27: W291 trailing whitespace
+scripts/week3_bsm.py:1144:31: W291 trailing whitespace
+scripts/week3_bsm.py:1145:26: W291 trailing whitespace
+scripts/week3_bsm.py:1146:31: W291 trailing whitespace
+scripts/week3_bsm.py:1147:26: W291 trailing whitespace
+scripts/week3_bsm.py:1148:26: W291 trailing whitespace
+scripts/week3_bsm.py:1149:28: W291 trailing whitespace
+scripts/week3_bsm.py:1150:30: W291 trailing whitespace
+scripts/week3_bsm.py:1156:1: W293 blank line contains whitespace
+scripts/week3_bsm.py:1168:80: E501 line too long (99 > 79 characters)
+scripts/week4_bsm_evaluation.py:47:1: E402 module level import not at top of file
+scripts/week4_bsm_evaluation.py:48:1: E402 module level import not at top of file
+scripts/week4_bsm_evaluation.py:50:80: E501 line too long (80 > 79 characters)
+scripts/week4_bsm_evaluation.py:51:5: E221 multiple spaces before operator
+scripts/week4_bsm_evaluation.py:52:8: E221 multiple spaces before operator
+scripts/week4_bsm_evaluation.py:53:14: E221 multiple spaces before operator
+scripts/week4_bsm_evaluation.py:54:12: E221 multiple spaces before operator
+scripts/week4_bsm_evaluation.py:55:13: E221 multiple spaces before operator
+scripts/week4_bsm_evaluation.py:56:9: E221 multiple spaces before operator
+scripts/week4_bsm_evaluation.py:58:80: E501 line too long (80 > 79 characters)
+scripts/week4_bsm_evaluation.py:59:9: E221 multiple spaces before operator
+scripts/week4_bsm_evaluation.py:60:8: E221 multiple spaces before operator
+scripts/week4_bsm_evaluation.py:61:11: E221 multiple spaces before operator
+scripts/week4_bsm_evaluation.py:62:10: E221 multiple spaces before operator
+scripts/week4_bsm_evaluation.py:63:11: E221 multiple spaces before operator
+scripts/week4_bsm_evaluation.py:64:10: E221 multiple spaces before operator
+scripts/week4_bsm_evaluation.py:65:12: E221 multiple spaces before operator
+scripts/week4_bsm_evaluation.py:66:8: E221 multiple spaces before operator
+scripts/week4_bsm_evaluation.py:67:9: E221 multiple spaces before operator
+scripts/week4_bsm_evaluation.py:83:80: E501 line too long (86 > 79 characters)
+scripts/week4_bsm_evaluation.py:92:80: E501 line too long (85 > 79 characters)
+scripts/week4_bsm_evaluation.py:132:80: E501 line too long (82 > 79 characters)
+scripts/week4_bsm_evaluation.py:133:80: E501 line too long (94 > 79 characters)
+scripts/week4_bsm_evaluation.py:138:80: E501 line too long (83 > 79 characters)
+scripts/week4_bsm_evaluation.py:145:80: E501 line too long (82 > 79 characters)
+scripts/week4_bsm_evaluation.py:152:80: E501 line too long (92 > 79 characters)
+scripts/week4_bsm_evaluation.py:159:14: E221 multiple spaces before operator
+scripts/week4_bsm_evaluation.py:161:80: E501 line too long (80 > 79 characters)
+scripts/week4_bsm_evaluation.py:198:80: E501 line too long (82 > 79 characters)
+scripts/week4_bsm_evaluation.py:212:80: E501 line too long (86 > 79 characters)
+scripts/week4_bsm_evaluation.py:218:10: E221 multiple spaces before operator
+scripts/week4_bsm_evaluation.py:219:10: E221 multiple spaces before operator
+scripts/week4_bsm_evaluation.py:220:10: E221 multiple spaces before operator
+scripts/week4_bsm_evaluation.py:222:12: E221 multiple spaces before operator
+scripts/week4_bsm_evaluation.py:223:13: E221 multiple spaces before operator
+scripts/week4_bsm_evaluation.py:247:27: E221 multiple spaces before operator
+scripts/week4_bsm_evaluation.py:266:80: E501 line too long (88 > 79 characters)
+scripts/week4_bsm_evaluation.py:277:80: E501 line too long (104 > 79 characters)
+scripts/week4_bsm_evaluation.py:324:80: E501 line too long (86 > 79 characters)
+scripts/week4_bsm_evaluation.py:342:32: E221 multiple spaces before operator
+scripts/week4_bsm_evaluation.py:342:80: E501 line too long (95 > 79 characters)
+scripts/week4_bsm_evaluation.py:343:80: E501 line too long (96 > 79 characters)
+scripts/week4_bsm_evaluation.py:347:16: E221 multiple spaces before operator
+scripts/week4_bsm_evaluation.py:352:20: E221 multiple spaces before operator
+scripts/week4_bsm_evaluation.py:352:80: E501 line too long (80 > 79 characters)
+scripts/week4_bsm_evaluation.py:361:80: E501 line too long (128 > 79 characters)
+scripts/week4_bsm_evaluation.py:362:80: E501 line too long (121 > 79 characters)
+scripts/week4_bsm_evaluation.py:363:80: E501 line too long (130 > 79 characters)
+scripts/week4_bsm_evaluation.py:364:80: E501 line too long (123 > 79 characters)
+scripts/week4_bsm_evaluation.py:365:80: E501 line too long (124 > 79 characters)
+scripts/week4_bsm_evaluation.py:366:80: E501 line too long (129 > 79 characters)
+scripts/week4_bsm_evaluation.py:367:80: E501 line too long (124 > 79 characters)
+scripts/week4_bsm_evaluation.py:368:80: E501 line too long (129 > 79 characters)
+scripts/week4_bsm_evaluation.py:369:80: E501 line too long (85 > 79 characters)
+scripts/week4_bsm_evaluation.py:371:80: E501 line too long (133 > 79 characters)
+scripts/week4_bsm_evaluation.py:373:80: E501 line too long (133 > 79 characters)
+scripts/week4_bsm_evaluation.py:421:80: E501 line too long (88 > 79 characters)
+scripts/week4_bsm_evaluation.py:433:80: E501 line too long (91 > 79 characters)
+scripts/week4_bsm_evaluation.py:467:80: E501 line too long (94 > 79 characters)
+scripts/week4_bsm_evaluation.py:468:80: E501 line too long (114 > 79 characters)
+scripts/week4_bsm_evaluation.py:469:80: E501 line too long (98 > 79 characters)
+scripts/week4_bsm_evaluation.py:471:80: E501 line too long (92 > 79 characters)
+scripts/week4_bsm_evaluation.py:480:80: E501 line too long (104 > 79 characters)
+scripts/week4_bsm_evaluation.py:484:80: E501 line too long (101 > 79 characters)
+scripts/week4_bsm_evaluation.py:485:80: E501 line too long (103 > 79 characters)
+scripts/week4_bsm_evaluation.py:504:13: E221 multiple spaces before operator
+scripts/week4_bsm_evaluation.py:504:80: E501 line too long (82 > 79 characters)
+scripts/week4_bsm_evaluation.py:520:80: E501 line too long (80 > 79 characters)
+scripts/week4_bsm_evaluation.py:536:80: E501 line too long (90 > 79 characters)
+scripts/week4_bsm_evaluation.py:567:80: E501 line too long (94 > 79 characters)
+scripts/week4_bsm_evaluation.py:568:80: E501 line too long (114 > 79 characters)
+scripts/week4_bsm_evaluation.py:569:80: E501 line too long (98 > 79 characters)
+scripts/week4_bsm_evaluation.py:588:80: E501 line too long (82 > 79 characters)
+scripts/week4_bsm_evaluation.py:602:80: E501 line too long (106 > 79 characters)
+scripts/week4_bsm_evaluation.py:613:80: E501 line too long (80 > 79 characters)
+scripts/week4_bsm_evaluation.py:614:80: E501 line too long (97 > 79 characters)
+scripts/week4_bsm_evaluation.py:617:1: W293 blank line contains whitespace
+scripts/week4_bsm_evaluation.py:619:80: E501 line too long (117 > 79 characters)
+scripts/week4_bsm_evaluation.py:623:80: E501 line too long (85 > 79 characters)
+scripts/week4_bsm_evaluation.py:624:1: W293 blank line contains whitespace
+scripts/week4_bsm_evaluation.py:626:80: E501 line too long (102 > 79 characters)
+scripts/week4_bsm_evaluation.py:627:80: E501 line too long (107 > 79 characters)
+scripts/week4_bsm_evaluation.py:631:80: E501 line too long (94 > 79 characters)
+scripts/week4_bsm_evaluation.py:632:1: W293 blank line contains whitespace
+scripts/week4_bsm_evaluation.py:634:80: E501 line too long (94 > 79 characters)
+scripts/week4_bsm_evaluation.py:635:80: E501 line too long (114 > 79 characters)
+scripts/week4_bsm_evaluation.py:636:80: E501 line too long (98 > 79 characters)
+scripts/week4_bsm_evaluation.py:639:1: W293 blank line contains whitespace
+scripts/week4_bsm_evaluation.py:647:80: E501 line too long (88 > 79 characters)
+scripts/week4_bsm_evaluation.py:652:1: W293 blank line contains whitespace
+scripts/week4_bsm_evaluation.py:654:80: E501 line too long (116 > 79 characters)
+scripts/week4_bsm_evaluation.py:658:80: E501 line too long (80 > 79 characters)
+scripts/week4_bsm_evaluation.py:670:80: E501 line too long (83 > 79 characters)
+scripts/week4_bsm_evaluation.py:676:80: E501 line too long (88 > 79 characters)
+scripts/week4_bsm_evaluation.py:684:80: E501 line too long (85 > 79 characters)
+scripts/week4_bsm_evaluation.py:715:80: E501 line too long (82 > 79 characters)
+scripts/week4_bsm_evaluation.py:716:1: W293 blank line contains whitespace
+scripts/week4_bsm_evaluation.py:719:1: W293 blank line contains whitespace
+scripts/week4_bsm_evaluation.py:721:80: E501 line too long (81 > 79 characters)
+scripts/week4_bsm_evaluation.py:725:1: W293 blank line contains whitespace
+scripts/week4_bsm_evaluation.py:727:80: E501 line too long (80 > 79 characters)
+scripts/week4_bsm_evaluation.py:728:80: E501 line too long (98 > 79 characters)
+scripts/week4_bsm_evaluation.py:734:80: E501 line too long (81 > 79 characters)
+scripts/week4_bsm_evaluation.py:735:80: E501 line too long (98 > 79 characters)
+scripts/week4_bsm_evaluation.py:741:80: E501 line too long (80 > 79 characters)
+scripts/week4_bsm_evaluation.py:742:80: E501 line too long (98 > 79 characters)
+scripts/week4_bsm_evaluation.py:747:1: W293 blank line contains whitespace
+scripts/week4_bsm_evaluation.py:754:80: E501 line too long (116 > 79 characters)
+scripts/week4_bsm_evaluation.py:756:80: E501 line too long (80 > 79 characters)
+scripts/week4_bsm_evaluation.py:756:81: W291 trailing whitespace
+scripts/week4_bsm_evaluation.py:758:80: E501 line too long (89 > 79 characters)
+scripts/week4_bsm_evaluation.py:761:1: W293 blank line contains whitespace
+scripts/week4_bsm_evaluation.py:767:1: W293 blank line contains whitespace
+scripts/week4_bsm_evaluation.py:794:1: W293 blank line contains whitespace
+scripts/week4_bsm_evaluation.py:796:1: W293 blank line contains whitespace
+scripts/week4_bsm_evaluation.py:809:1: W293 blank line contains whitespace
+scripts/week4_bsm_evaluation.py:816:1: W293 blank line contains whitespace
+scripts/week4_bsm_evaluation.py:819:1: W293 blank line contains whitespace
+scripts/week4_bsm_evaluation.py:824:1: W293 blank line contains whitespace
+scripts/week4_bsm_evaluation.py:827:1: W293 blank line contains whitespace
+scripts/week4_bsm_evaluation.py:830:80: E501 line too long (111 > 79 characters)
+scripts/week4_bsm_evaluation.py:831:80: E501 line too long (109 > 79 characters)
+scripts/week4_bsm_evaluation.py:832:1: W293 blank line contains whitespace
+scripts/week4_bsm_evaluation.py:835:1: W293 blank line contains whitespace
+scripts/week4_bsm_evaluation.py:836:80: E501 line too long (93 > 79 characters)
+scripts/week4_bsm_evaluation.py:837:22: E127 continuation line over-indented for visual indent
+scripts/week4_bsm_evaluation.py:838:22: E127 continuation line over-indented for visual indent
+scripts/week4_bsm_evaluation.py:839:22: E127 continuation line over-indented for visual indent
+scripts/week4_bsm_evaluation.py:839:80: E501 line too long (101 > 79 characters)
+scripts/week4_bsm_evaluation.py:840:1: W293 blank line contains whitespace
+scripts/week4_bsm_evaluation.py:841:80: E501 line too long (91 > 79 characters)
+scripts/week4_bsm_evaluation.py:842:22: E127 continuation line over-indented for visual indent
+scripts/week4_bsm_evaluation.py:843:22: E127 continuation line over-indented for visual indent
+scripts/week4_bsm_evaluation.py:844:22: E127 continuation line over-indented for visual indent
+scripts/week4_bsm_evaluation.py:844:80: E501 line too long (101 > 79 characters)
+scripts/week4_bsm_evaluation.py:845:1: W293 blank line contains whitespace
+scripts/week4_bsm_evaluation.py:849:80: E501 line too long (88 > 79 characters)
+scripts/week4_bsm_evaluation.py:850:80: E501 line too long (95 > 79 characters)
+scripts/week4_bsm_evaluation.py:853:1: W293 blank line contains whitespace
+scripts/week4_bsm_evaluation.py:855:80: E501 line too long (123 > 79 characters)
+scripts/week4_bsm_evaluation.py:856:1: W293 blank line contains whitespace
+scripts/week4_bsm_evaluation.py:858:80: E501 line too long (82 > 79 characters)
+scripts/week4_bsm_evaluation.py:859:40: E261 at least two spaces before inline comment
+scripts/week4_bsm_evaluation.py:860:1: W293 blank line contains whitespace
+scripts/week4_bsm_evaluation.py:861:80: E501 line too long (106 > 79 characters)
+scripts/week4_bsm_evaluation.py:862:80: E501 line too long (104 > 79 characters)
+scripts/week4_bsm_evaluation.py:866:80: E501 line too long (88 > 79 characters)
+scripts/week4_bsm_evaluation.py:868:1: W293 blank line contains whitespace
+scripts/week4_bsm_evaluation.py:870:80: E501 line too long (130 > 79 characters)
+scripts/week4_bsm_evaluation.py:871:80: E501 line too long (130 > 79 characters)
+scripts/week4_bsm_evaluation.py:873:1: W293 blank line contains whitespace
+scripts/week4_bsm_evaluation.py:877:80: E501 line too long (80 > 79 characters)
+scripts/week4_bsm_evaluation.py:878:1: W293 blank line contains whitespace
+scripts/week4_bsm_evaluation.py:898:1: W293 blank line contains whitespace
+scripts/week4_bsm_evaluation.py:913:12: E221 multiple spaces before operator
+scripts/week4_bsm_evaluation.py:914:10: E221 multiple spaces before operator
+scripts/week4_bsm_evaluation.py:915:10: E221 multiple spaces before operator
+scripts/week4_bsm_evaluation.py:916:11: E221 multiple spaces before operator
+scripts/week4_bsm_evaluation.py:918:12: E221 multiple spaces before operator
+scripts/week4_bsm_evaluation.py:919:11: E221 multiple spaces before operator
+scripts/week4_bsm_evaluation.py:939:80: E501 line too long (80 > 79 characters)
+scripts/week4_bsm_evaluation.py:949:80: E501 line too long (81 > 79 characters)
+scripts/week4_bsm_evaluation.py:951:80: E501 line too long (99 > 79 characters)
+scripts/week4_bsm_evaluation.py:976:80: E501 line too long (198 > 79 characters)
+scripts/week4_bsm_evaluation.py:977:80: E501 line too long (206 > 79 characters)
+scripts/week4_bsm_evaluation.py:978:80: E501 line too long (206 > 79 characters)
+scripts/week4_bsm_evaluation.py:982:80: E501 line too long (81 > 79 characters)
+scripts/week4_bsm_evaluation.py:1003:80: E501 line too long (119 > 79 characters)
+scripts/week4_bsm_evaluation.py:1004:80: E501 line too long (121 > 79 characters)
+scripts/week4_bsm_evaluation.py:1005:80: E501 line too long (108 > 79 characters)
+scripts/week4_bsm_evaluation.py:1006:80: E501 line too long (108 > 79 characters)
+scripts/week4_bsm_evaluation.py:1008:80: E501 line too long (80 > 79 characters)
+scripts/week4_bsm_evaluation.py:1009:80: E501 line too long (81 > 79 characters)
+scripts/week4_bsm_evaluation.py:1011:80: E501 line too long (81 > 79 characters)
+scripts/week4_bsm_evaluation.py:1041:10: E221 multiple spaces before operator
+scripts/week4_bsm_evaluation.py:1042:10: E221 multiple spaces before operator
+scripts/week4_bsm_evaluation.py:1043:11: E221 multiple spaces before operator
+scripts/week4_bsm_evaluation.py:1052:80: E501 line too long (81 > 79 characters)
+scripts/week4_bsm_evaluation.py:1098:80: E501 line too long (105 > 79 characters)
+scripts/week4_bsm_evaluation.py:1113:80: E501 line too long (83 > 79 characters)
+scripts/week4_bsm_evaluation.py:1121:80: E501 line too long (123 > 79 characters)
+scripts/week4_bsm_evaluation.py:1124:80: E501 line too long (96 > 79 characters)
+scripts/week4_bsm_evaluation.py:1125:80: E501 line too long (101 > 79 characters)
+scripts/week4_bsm_evaluation.py:1136:80: E501 line too long (130 > 79 characters)
+scripts/week4_bsm_evaluation.py:1156:80: E501 line too long (81 > 79 characters)
+scripts/week4_bsm_evaluation.py:1160:80: E501 line too long (81 > 79 characters)
+scripts/week4_bsm_evaluation.py:1164:80: E501 line too long (81 > 79 characters)
+scripts/week4_bsm_evaluation.py:1182:80: E501 line too long (88 > 79 characters)
+scripts/week4_bsm_evaluation.py:1184:80: E501 line too long (101 > 79 characters)
+scripts/week4_bsm_evaluation.py:1186:1: W293 blank line contains whitespace
+scripts/week4_bsm_evaluation.py:1189:1: W293 blank line contains whitespace
+scripts/week4_bsm_evaluation.py:1201:1: W293 blank line contains whitespace
+scripts/week4_bsm_evaluation.py:1208:1: W293 blank line contains whitespace
+scripts/week4_bsm_evaluation.py:1211:1: W293 blank line contains whitespace
+scripts/week4_bsm_evaluation.py:1216:1: W293 blank line contains whitespace
+scripts/week4_bsm_evaluation.py:1218:80: E501 line too long (97 > 79 characters)
+scripts/week4_bsm_evaluation.py:1219:80: E501 line too long (97 > 79 characters)
+scripts/week4_bsm_evaluation.py:1227:80: E501 line too long (114 > 79 characters)
+scripts/week4_bsm_evaluation.py:1237:80: E501 line too long (80 > 79 characters)
+scripts/week4_bsm_evaluation.py:1247:80: E501 line too long (81 > 79 characters)
+scripts/week4_bsm_evaluation.py:1249:80: E501 line too long (99 > 79 characters)
+scripts/week4_bsm_evaluation.py:1274:80: E501 line too long (198 > 79 characters)
+scripts/week4_bsm_evaluation.py:1275:80: E501 line too long (206 > 79 characters)
+scripts/week4_bsm_evaluation.py:1276:80: E501 line too long (206 > 79 characters)
+scripts/week4_bsm_evaluation.py:1278:80: E501 line too long (81 > 79 characters)
+scripts/week4_bsm_evaluation.py:1279:80: E501 line too long (80 > 79 characters)
+scripts/week4_bsm_evaluation.py:1291:80: E501 line too long (119 > 79 characters)
+scripts/week4_bsm_evaluation.py:1292:80: E501 line too long (121 > 79 characters)
+scripts/week4_bsm_evaluation.py:1293:80: E501 line too long (108 > 79 characters)
+scripts/week4_bsm_evaluation.py:1294:80: E501 line too long (108 > 79 characters)
+scripts/week4_bsm_evaluation.py:1349:80: E501 line too long (105 > 79 characters)
+scripts/week4_bsm_evaluation.py:1357:80: E501 line too long (163 > 79 characters)
+scripts/week4_bsm_evaluation.py:1358:80: E501 line too long (108 > 79 characters)
+scripts/week4_bsm_evaluation.py:1359:80: E501 line too long (113 > 79 characters)
+scripts/week4_bsm_evaluation.py:1367:80: E501 line too long (130 > 79 characters)
+scripts/week4_bsm_evaluation.py:1386:14: E221 multiple spaces before operator
+scripts/week4_bsm_evaluation.py:1387:14: E221 multiple spaces before operator
+scripts/week4_bsm_evaluation.py:1389:80: E501 line too long (85 > 79 characters)
+scripts/week4_bsm_evaluation.py:1401:19: E221 multiple spaces before operator
+scripts/week4_bsm_evaluation.py:1401:80: E501 line too long (87 > 79 characters)
+scripts/week4_bsm_evaluation.py:1402:21: E221 multiple spaces before operator
+scripts/week4_bsm_evaluation.py:1402:80: E501 line too long (84 > 79 characters)
+scripts/week4_bsm_evaluation.py:1403:80: E501 line too long (84 > 79 characters)
+scripts/week4_bsm_evaluation.py:1404:80: E501 line too long (99 > 79 characters)
+scripts/week4_bsm_evaluation.py:1451:80: E501 line too long (81 > 79 characters)
+scripts/week4_bsm_evaluation.py:1460:80: E501 line too long (90 > 79 characters)
+scripts/week4_bsm_evaluation.py:1461:80: E501 line too long (88 > 79 characters)
+scripts/week4_bsm_evaluation.py:1462:80: E501 line too long (91 > 79 characters)
+scripts/week4_bsm_evaluation.py:1463:80: E501 line too long (95 > 79 characters)
+scripts/week4_bsm_evaluation.py:1464:80: E501 line too long (81 > 79 characters)
+scripts/week4_bsm_evaluation.py:1465:80: E501 line too long (103 > 79 characters)
+scripts/week4_bsm_evaluation.py:1466:80: E501 line too long (85 > 79 characters)
+scripts/week4_bsm_evaluation.py:1467:80: E501 line too long (101 > 79 characters)
+scripts/week4_bsm_evaluation.py:1475:80: E501 line too long (88 > 79 characters)
+scripts/week4_bsm_evaluation.py:1486:80: E501 line too long (100 > 79 characters)
+scripts/week4_bsm_evaluation.py:1498:80: E501 line too long (87 > 79 characters)
+scripts/week4_bsm_evaluation.py:1499:80: E501 line too long (85 > 79 characters)
+scripts/week5_ml_models.py:57:1: E402 module level import not at top of file
+scripts/week5_ml_models.py:58:1: E402 module level import not at top of file
+scripts/week5_ml_models.py:59:1: E402 module level import not at top of file
+scripts/week5_ml_models.py:60:1: E402 module level import not at top of file
+scripts/week5_ml_models.py:61:1: E402 module level import not at top of file
+scripts/week5_ml_models.py:62:1: E402 module level import not at top of file
+scripts/week5_ml_models.py:63:1: E402 module level import not at top of file
+scripts/week5_ml_models.py:64:1: E402 module level import not at top of file
+scripts/week5_ml_models.py:65:1: E402 module level import not at top of file
+scripts/week5_ml_models.py:66:1: E402 module level import not at top of file
+scripts/week5_ml_models.py:66:80: E501 line too long (86 > 79 characters)
+scripts/week5_ml_models.py:68:1: E402 module level import not at top of file
+scripts/week5_ml_models.py:69:1: E402 module level import not at top of file
+scripts/week5_ml_models.py:70:1: E402 module level import not at top of file
+scripts/week5_ml_models.py:71:1: E402 module level import not at top of file
+scripts/week5_ml_models.py:72:1: E402 module level import not at top of file
+scripts/week5_ml_models.py:73:1: E402 module level import not at top of file
+scripts/week5_ml_models.py:74:1: E402 module level import not at top of file
+scripts/week5_ml_models.py:75:1: E402 module level import not at top of file
+scripts/week5_ml_models.py:99:80: E501 line too long (80 > 79 characters)
+scripts/week5_ml_models.py:100:5: E221 multiple spaces before operator
+scripts/week5_ml_models.py:101:8: E221 multiple spaces before operator
+scripts/week5_ml_models.py:103:12: E221 multiple spaces before operator
+scripts/week5_ml_models.py:104:13: E221 multiple spaces before operator
+scripts/week5_ml_models.py:105:9: E221 multiple spaces before operator
+scripts/week5_ml_models.py:106:12: E221 multiple spaces before operator
+scripts/week5_ml_models.py:107:12: E221 multiple spaces before operator
+scripts/week5_ml_models.py:108:13: E221 multiple spaces before operator
+scripts/week5_ml_models.py:109:9: E221 multiple spaces before operator
+scripts/week5_ml_models.py:110:13: E221 multiple spaces before operator
+scripts/week5_ml_models.py:112:10: E221 multiple spaces before operator
+scripts/week5_ml_models.py:113:11: E221 multiple spaces before operator
+scripts/week5_ml_models.py:115:80: E501 line too long (80 > 79 characters)
+scripts/week5_ml_models.py:116:10: E221 multiple spaces before operator
+scripts/week5_ml_models.py:117:11: E221 multiple spaces before operator
+scripts/week5_ml_models.py:118:15: E221 multiple spaces before operator
+scripts/week5_ml_models.py:120:19: E221 multiple spaces before operator
+scripts/week5_ml_models.py:121:10: E221 multiple spaces before operator
+scripts/week5_ml_models.py:122:11: E221 multiple spaces before operator
+scripts/week5_ml_models.py:123:9: E221 multiple spaces before operator
+scripts/week5_ml_models.py:125:14: E221 multiple spaces before operator
+scripts/week5_ml_models.py:126:12: E221 multiple spaces before operator
+scripts/week5_ml_models.py:127:11: E221 multiple spaces before operator
+scripts/week5_ml_models.py:128:13: E221 multiple spaces before operator
+scripts/week5_ml_models.py:130:8: E221 multiple spaces before operator
+scripts/week5_ml_models.py:131:9: E221 multiple spaces before operator
+scripts/week5_ml_models.py:143:80: E501 line too long (108 > 79 characters)
+scripts/week5_ml_models.py:147:1: E305 expected 2 blank lines after class or function definition, found 1
+scripts/week5_ml_models.py:183:6: E221 multiple spaces before operator
+scripts/week5_ml_models.py:185:7: E221 multiple spaces before operator
+scripts/week5_ml_models.py:185:80: E501 line too long (83 > 79 characters)
+scripts/week5_ml_models.py:186:7: E221 multiple spaces before operator
+scripts/week5_ml_models.py:187:9: E221 multiple spaces before operator
+scripts/week5_ml_models.py:187:80: E501 line too long (81 > 79 characters)
+scripts/week5_ml_models.py:188:8: E221 multiple spaces before operator
+scripts/week5_ml_models.py:188:80: E501 line too long (83 > 79 characters)
+scripts/week5_ml_models.py:208:80: E501 line too long (86 > 79 characters)
+scripts/week5_ml_models.py:229:80: E501 line too long (89 > 79 characters)
+scripts/week5_ml_models.py:233:80: E501 line too long (127 > 79 characters)
+scripts/week5_ml_models.py:263:80: E501 line too long (102 > 79 characters)
+scripts/week5_ml_models.py:288:80: E501 line too long (83 > 79 characters)
+scripts/week5_ml_models.py:290:80: E501 line too long (80 > 79 characters)
+scripts/week5_ml_models.py:291:80: E501 line too long (94 > 79 characters)
+scripts/week5_ml_models.py:294:1: E302 expected 2 blank lines, found 1
+scripts/week5_ml_models.py:296:1: W293 blank line contains whitespace
+scripts/week5_ml_models.py:304:80: E501 line too long (80 > 79 characters)
+scripts/week5_ml_models.py:306:80: E501 line too long (94 > 79 characters)
+scripts/week5_ml_models.py:311:80: E501 line too long (105 > 79 characters)
+scripts/week5_ml_models.py:320:80: E501 line too long (106 > 79 characters)
+scripts/week5_ml_models.py:326:80: E501 line too long (105 > 79 characters)
+scripts/week5_ml_models.py:332:80: E501 line too long (86 > 79 characters)
+scripts/week5_ml_models.py:334:80: E501 line too long (81 > 79 characters)
+scripts/week5_ml_models.py:338:80: E501 line too long (99 > 79 characters)
+scripts/week5_ml_models.py:372:80: E501 line too long (95 > 79 characters)
+scripts/week5_ml_models.py:374:80: E501 line too long (94 > 79 characters)
+scripts/week5_ml_models.py:378:80: E501 line too long (112 > 79 characters)
+scripts/week5_ml_models.py:394:23: E221 multiple spaces before operator
+scripts/week5_ml_models.py:394:58: E221 multiple spaces before operator
+scripts/week5_ml_models.py:395:59: E221 multiple spaces before operator
+scripts/week5_ml_models.py:396:59: E221 multiple spaces before operator
+scripts/week5_ml_models.py:397:59: E221 multiple spaces before operator
+scripts/week5_ml_models.py:398:59: E221 multiple spaces before operator
+scripts/week5_ml_models.py:401:26: E221 multiple spaces before operator
+scripts/week5_ml_models.py:412:21: E221 multiple spaces before operator
+scripts/week5_ml_models.py:413:21: E221 multiple spaces before operator
+scripts/week5_ml_models.py:424:24: E221 multiple spaces before operator
+scripts/week5_ml_models.py:431:24: E221 multiple spaces before operator
+scripts/week5_ml_models.py:450:12: E221 multiple spaces before operator
+scripts/week5_ml_models.py:452:32: E203 whitespace before ':'
+scripts/week5_ml_models.py:463:80: E501 line too long (86 > 79 characters)
+scripts/week5_ml_models.py:510:80: E501 line too long (87 > 79 characters)
+scripts/week5_ml_models.py:519:80: E501 line too long (81 > 79 characters)
+scripts/week5_ml_models.py:520:80: E501 line too long (84 > 79 characters)
+scripts/week5_ml_models.py:540:80: E501 line too long (81 > 79 characters)
+scripts/week5_ml_models.py:541:1: W293 blank line contains whitespace
+scripts/week5_ml_models.py:547:80: E501 line too long (94 > 79 characters)
+scripts/week5_ml_models.py:557:10: E221 multiple spaces before operator
+scripts/week5_ml_models.py:558:10: E221 multiple spaces before operator
+scripts/week5_ml_models.py:559:10: E221 multiple spaces before operator
+scripts/week5_ml_models.py:562:1: W293 blank line contains whitespace
+scripts/week5_ml_models.py:567:1: W293 blank line contains whitespace
+scripts/week5_ml_models.py:573:1: W293 blank line contains whitespace
+scripts/week5_ml_models.py:576:80: E501 line too long (87 > 79 characters)
+scripts/week5_ml_models.py:586:80: E501 line too long (80 > 79 characters)
+scripts/week5_ml_models.py:589:80: E501 line too long (81 > 79 characters)
+scripts/week5_ml_models.py:594:80: E501 line too long (98 > 79 characters)
+scripts/week5_ml_models.py:597:80: E501 line too long (105 > 79 characters)
+scripts/week5_ml_models.py:613:20: E221 multiple spaces before operator
+scripts/week5_ml_models.py:619:10: E221 multiple spaces before operator
+scripts/week5_ml_models.py:620:6: E221 multiple spaces before operator
+scripts/week5_ml_models.py:622:10: E221 multiple spaces before operator
+scripts/week5_ml_models.py:625:14: E221 multiple spaces before operator
+scripts/week5_ml_models.py:625:32: E203 whitespace before ':'
+scripts/week5_ml_models.py:626:15: E221 multiple spaces before operator
+scripts/week5_ml_models.py:626:40: E203 whitespace before ':'
+scripts/week5_ml_models.py:635:80: E501 line too long (96 > 79 characters)
+scripts/week5_ml_models.py:636:80: E501 line too long (91 > 79 characters)
+scripts/week5_ml_models.py:642:80: E501 line too long (112 > 79 characters)
+scripts/week5_ml_models.py:643:80: E501 line too long (81 > 79 characters)
+scripts/week5_ml_models.py:650:80: E501 line too long (83 > 79 characters)
+scripts/week5_ml_models.py:656:80: E501 line too long (81 > 79 characters)
+scripts/week5_ml_models.py:704:80: E501 line too long (83 > 79 characters)
+scripts/week5_ml_models.py:717:80: E501 line too long (82 > 79 characters)
+scripts/week5_ml_models.py:723:80: E501 line too long (91 > 79 characters)
+scripts/week5_ml_models.py:741:80: E501 line too long (81 > 79 characters)
+scripts/week5_ml_models.py:795:80: E501 line too long (197 > 79 characters)
+scripts/week5_ml_models.py:838:80: E501 line too long (91 > 79 characters)
+scripts/week5_ml_models.py:862:13: E221 multiple spaces before operator
+scripts/week5_ml_models.py:873:80: E501 line too long (112 > 79 characters)
+scripts/week5_ml_models.py:892:80: E501 line too long (87 > 79 characters)
+scripts/week5_ml_models.py:899:80: E501 line too long (82 > 79 characters)
+scripts/week5_ml_models.py:965:43: E221 multiple spaces before operator
+scripts/week5_ml_models.py:970:80: E501 line too long (88 > 79 characters)
+scripts/week5_ml_models.py:971:80: E501 line too long (98 > 79 characters)
+scripts/week5_ml_models.py:972:80: E501 line too long (94 > 79 characters)
+scripts/week5_ml_models.py:976:15: E221 multiple spaces before operator
+scripts/week5_ml_models.py:977:16: E221 multiple spaces before operator
+scripts/week5_ml_models.py:978:16: E221 multiple spaces before operator
+scripts/week5_ml_models.py:983:35: E203 whitespace before ':'
+scripts/week5_ml_models.py:995:14: E221 multiple spaces before operator
+scripts/week5_ml_models.py:996:80: E501 line too long (81 > 79 characters)
+scripts/week5_ml_models.py:1016:18: E221 multiple spaces before operator
+scripts/week5_ml_models.py:1017:16: E221 multiple spaces before operator
+scripts/week5_ml_models.py:1031:1: E302 expected 2 blank lines, found 1
+scripts/week5_ml_models.py:1071:80: E501 line too long (80 > 79 characters)
+scripts/week5_ml_models.py:1078:80: E501 line too long (87 > 79 characters)
+scripts/week5_ml_models.py:1079:80: E501 line too long (94 > 79 characters)
+scripts/week5_ml_models.py:1104:1: E302 expected 2 blank lines, found 1
+scripts/week5_ml_models.py:1112:80: E501 line too long (83 > 79 characters)
+scripts/week5_ml_models.py:1115:80: E501 line too long (148 > 79 characters)
+scripts/week5_ml_models.py:1115:93: E231 missing whitespace after ','
+scripts/week5_ml_models.py:1115:116: E231 missing whitespace after ','
+scripts/week5_ml_models.py:1115:139: E231 missing whitespace after ','
+scripts/week5_ml_models.py:1131:80: E501 line too long (97 > 79 characters)
+scripts/week5_ml_models.py:1133:80: E501 line too long (235 > 79 characters)
+scripts/week5_ml_models.py:1139:1: E302 expected 2 blank lines, found 1
+scripts/week5_ml_models.py:1142:15: E221 multiple spaces before operator
+scripts/week5_ml_models.py:1143:14: E221 multiple spaces before operator
+scripts/week5_ml_models.py:1144:11: E221 multiple spaces before operator
+scripts/week5_ml_models.py:1145:13: E221 multiple spaces before operator
+scripts/week5_ml_models.py:1146:11: E221 multiple spaces before operator
+scripts/week5_ml_models.py:1146:32: E203 whitespace before ':'
+scripts/week5_ml_models.py:1149:14: E221 multiple spaces before operator
+scripts/week5_ml_models.py:1150:13: E221 multiple spaces before operator
+scripts/week5_ml_models.py:1175:13: E221 multiple spaces before operator
+scripts/week5_ml_models.py:1176:11: E221 multiple spaces before operator
+scripts/week5_ml_models.py:1177:11: E221 multiple spaces before operator
+scripts/week5_ml_models.py:1178:12: E221 multiple spaces before operator
+scripts/week5_ml_models.py:1180:16: E221 multiple spaces before operator
+scripts/week5_ml_models.py:1186:80: E501 line too long (151 > 79 characters)
+scripts/week5_ml_models.py:1198:17: E221 multiple spaces before operator
+scripts/week5_ml_models.py:1199:80: E501 line too long (87 > 79 characters)
+scripts/week5_ml_models.py:1200:80: E501 line too long (87 > 79 characters)
+scripts/week5_ml_models.py:1206:16: E221 multiple spaces before operator
+scripts/week5_ml_models.py:1208:17: E221 multiple spaces before operator
+scripts/week5_ml_models.py:1226:1: E302 expected 2 blank lines, found 1
+scripts/week5_ml_models.py:1242:1: W293 blank line contains whitespace
+scripts/week5_ml_models.py:1249:80: E501 line too long (85 > 79 characters)
+scripts/week5_ml_models.py:1255:80: E501 line too long (89 > 79 characters)
+scripts/week5_ml_models.py:1257:1: W293 blank line contains whitespace
+scripts/week5_ml_models.py:1275:1: W293 blank line contains whitespace
+scripts/week5_ml_models.py:1298:1: W293 blank line contains whitespace
+scripts/week5_ml_models.py:1303:80: E501 line too long (84 > 79 characters)
+scripts/week5_ml_models.py:1306:1: W293 blank line contains whitespace
+scripts/week5_ml_models.py:1312:1: W293 blank line contains whitespace
+scripts/week5_ml_models.py:1322:1: W293 blank line contains whitespace
+scripts/week5_ml_models.py:1341:1: W293 blank line contains whitespace
+scripts/week5_ml_models.py:1342:80: E501 line too long (80 > 79 characters)
+scripts/week5_ml_models.py:1364:9: E122 continuation line missing indentation or outdented
+scripts/week5_ml_models.py:1365:9: E122 continuation line missing indentation or outdented
+scripts/week5_ml_models.py:1366:5: E122 continuation line missing indentation or outdented
+scripts/week5_ml_models.py:1383:80: E501 line too long (99 > 79 characters)
+scripts/week5_ml_models.py:1432:80: E501 line too long (82 > 79 characters)
+scripts/week5_ml_models.py:1461:1: W293 blank line contains whitespace
+scripts/week5_ml_models.py:1468:80: E501 line too long (112 > 79 characters)
+scripts/week5_ml_models.py:1507:13: E122 continuation line missing indentation or outdented
+scripts/week5_ml_models.py:1508:13: E122 continuation line missing indentation or outdented
+scripts/week5_ml_models.py:1517:9: E122 continuation line missing indentation or outdented
+scripts/week5_ml_models.py:1519:80: E501 line too long (108 > 79 characters)
+scripts/week5_ml_models.py:1538:80: E501 line too long (112 > 79 characters)
+scripts/week5_ml_models.py:1565:80: E501 line too long (83 > 79 characters)
+scripts/week5_ml_models.py:1574:13: E731 do not assign a lambda expression, use a def
+scripts/week5_ml_models.py:1576:13: E731 do not assign a lambda expression, use a def
+scripts/week5_ml_models.py:1582:12: E221 multiple spaces before operator
+scripts/week5_ml_models.py:1583:13: E221 multiple spaces before operator
+scripts/week5_ml_models.py:1586:11: E221 multiple spaces before operator
+scripts/week5_ml_models.py:1597:80: E501 line too long (112 > 79 characters)
+scripts/week5_ml_models.py:1599:80: E501 line too long (89 > 79 characters)
+scripts/week5_ml_models.py:1627:8: E221 multiple spaces before operator
+scripts/week5_ml_models.py:1628:9: E221 multiple spaces before operator
+scripts/week5_ml_models.py:1631:7: E221 multiple spaces before operator
+scripts/week5_ml_models.py:1652:1: W293 blank line contains whitespace
+scripts/week5_ml_models.py:1654:80: E501 line too long (82 > 79 characters)
+scripts/week5_ml_models.py:1657:1: W293 blank line contains whitespace
+scripts/week5_ml_models.py:1681:1: W293 blank line contains whitespace
+scripts/week5_ml_models.py:1693:1: W293 blank line contains whitespace
+scripts/week5_ml_models.py:1699:1: W293 blank line contains whitespace
+scripts/week5_ml_models.py:1710:1: W293 blank line contains whitespace
+scripts/week5_ml_models.py:1755:8: E221 multiple spaces before operator
+scripts/week5_ml_models.py:1773:6: E221 multiple spaces before operator
+scripts/week5_ml_models.py:1798:6: E221 multiple spaces before operator
+scripts/week5_ml_models.py:1814:80: E501 line too long (82 > 79 characters)
+scripts/week5_ml_models.py:1826:7: E221 multiple spaces before operator
+scripts/week5_ml_models.py:1839:80: E501 line too long (81 > 79 characters)
+scripts/week5_ml_models.py:1846:80: E501 line too long (87 > 79 characters)
+scripts/week5_ml_models.py:1851:1: E302 expected 2 blank lines, found 1
+scripts/week5_ml_models.py:1889:80: E501 line too long (82 > 79 characters)
+scripts/week5_ml_models.py:1900:80: E501 line too long (81 > 79 characters)
+scripts/week5_ml_models.py:1944:80: E501 line too long (94 > 79 characters)
+scripts/week5_ml_models.py:1946:80: E501 line too long (109 > 79 characters)
+scripts/week5_ml_models.py:1948:80: E501 line too long (80 > 79 characters)
+scripts/week5_ml_models.py:1949:80: E501 line too long (104 > 79 characters)
+scripts/week5_ml_models.py:1951:80: E501 line too long (106 > 79 characters)
+scripts/week5_ml_models.py:1953:80: E501 line too long (116 > 79 characters)
+scripts/week5_ml_models.py:1954:80: E501 line too long (143 > 79 characters)
+scripts/week5_ml_models.py:1966:80: E501 line too long (220 > 79 characters)
+scripts/week5_ml_models.py:1970:80: E501 line too long (81 > 79 characters)
+scripts/week5_ml_models.py:1972:80: E501 line too long (80 > 79 characters)
+scripts/week5_ml_models.py:1976:80: E501 line too long (144 > 79 characters)
+scripts/week5_ml_models.py:1991:80: E501 line too long (80 > 79 characters)
+scripts/week5_ml_models.py:1992:80: E501 line too long (88 > 79 characters)
+scripts/week5_ml_models.py:1994:80: E501 line too long (85 > 79 characters)
+scripts/week5_ml_models.py:1996:80: E501 line too long (93 > 79 characters)
+scripts/week5_ml_models.py:2005:80: E501 line too long (107 > 79 characters)
+scripts/week5_ml_models.py:2010:80: E501 line too long (99 > 79 characters)
+scripts/week5_ml_models.py:2019:80: E501 line too long (81 > 79 characters)
+scripts/week5_ml_models.py:2027:80: E501 line too long (87 > 79 characters)
+scripts/week5_ml_models.py:2029:80: E501 line too long (85 > 79 characters)
+scripts/week5_ml_models.py:2032:80: E501 line too long (100 > 79 characters)
+scripts/week5_ml_models.py:2037:80: E501 line too long (95 > 79 characters)
+scripts/week5_ml_models.py:2038:80: E501 line too long (81 > 79 characters)
+scripts/week5_ml_models.py:2040:80: E501 line too long (111 > 79 characters)
+scripts/week5_ml_models.py:2042:80: E501 line too long (138 > 79 characters)
+scripts/week5_ml_models.py:2043:80: E501 line too long (100 > 79 characters)
+scripts/week5_ml_models.py:2049:80: E501 line too long (96 > 79 characters)
+scripts/week5_ml_models.py:2058:80: E501 line too long (86 > 79 characters)
+scripts/week5_ml_models.py:2062:14: E221 multiple spaces before operator
+scripts/week5_ml_models.py:2066:80: E501 line too long (119 > 79 characters)
+scripts/week5_ml_models.py:2068:80: E501 line too long (95 > 79 characters)
+scripts/week5_ml_models.py:2097:80: E501 line too long (202 > 79 characters)
+scripts/week5_ml_models.py:2107:80: E501 line too long (143 > 79 characters)
+scripts/week5_ml_models.py:2109:80: E501 line too long (84 > 79 characters)
+scripts/week5_ml_models.py:2162:80: E501 line too long (86 > 79 characters)
+scripts/week5_ml_models.py:2185:80: E501 line too long (117 > 79 characters)
+scripts/week5_ml_models.py:2187:80: E501 line too long (88 > 79 characters)
+scripts/week5_ml_models.py:2188:80: E501 line too long (80 > 79 characters)
+scripts/week5_ml_models.py:2189:80: E501 line too long (88 > 79 characters)
+scripts/week5_ml_models.py:2190:80: E501 line too long (81 > 79 characters)
+scripts/week5_ml_models.py:2191:80: E501 line too long (89 > 79 characters)
+scripts/week5_ml_models.py:2193:80: E501 line too long (135 > 79 characters)
+scripts/week5_ml_models.py:2197:80: E501 line too long (90 > 79 characters)
+scripts/week5_ml_models.py:2203:80: E501 line too long (80 > 79 characters)
+scripts/week5_ml_models.py:2211:80: E501 line too long (86 > 79 characters)
+scripts/week5_ml_models.py:2217:80: E501 line too long (153 > 79 characters)
+scripts/week5_ml_models.py:2220:80: E501 line too long (107 > 79 characters)
+scripts/week5_ml_models.py:2221:80: E501 line too long (149 > 79 characters)
+scripts/week5_ml_models.py:2222:80: E501 line too long (104 > 79 characters)
+scripts/week5_ml_models.py:2242:80: E501 line too long (146 > 79 characters)
+scripts/week5_ml_models.py:2245:80: E501 line too long (135 > 79 characters)
+scripts/week5_ml_models.py:2279:80: E501 line too long (81 > 79 characters)
+scripts/week5_ml_models.py:2282:80: E501 line too long (85 > 79 characters)
+scripts/week5_ml_models.py:2359:80: E501 line too long (83 > 79 characters)
+scripts/week5_ml_models.py:2374:80: E501 line too long (85 > 79 characters)
+scripts/week5_ml_models.py:2375:80: E501 line too long (100 > 79 characters)
+scripts/week5_ml_models.py:2381:80: E501 line too long (93 > 79 characters)
+scripts/week5_ml_models.py:2390:80: E501 line too long (98 > 79 characters)
+scripts/week5_ml_models.py:2407:80: E501 line too long (103 > 79 characters)
+scripts/week5_ml_models.py:2423:80: E501 line too long (80 > 79 characters)
+scripts/week5_ml_models.py:2429:80: E501 line too long (80 > 79 characters)
+scripts/week5_ml_models.py:2435:80: E501 line too long (80 > 79 characters)
+scripts/week5_ml_models.py:2449:80: E501 line too long (93 > 79 characters)
+scripts/week5_ml_models.py:2455:80: E501 line too long (80 > 79 characters)
+scripts/week5_ml_models.py:2478:80: E501 line too long (87 > 79 characters)
+scripts/week5_ml_models.py:2480:80: E501 line too long (88 > 79 characters)
+scripts/week5_ml_models.py:2481:80: E501 line too long (99 > 79 characters)
+scripts/week5_ml_models.py:2494:80: E501 line too long (100 > 79 characters)
+scripts/week5_ml_models.py:2501:80: E501 line too long (81 > 79 characters)
+scripts/week5_ml_models.py:2512:80: E501 line too long (80 > 79 characters)
+scripts/week5_ml_models.py:2521:80: E501 line too long (83 > 79 characters)
+scripts/week5_ml_models.py:2537:45: E203 whitespace before ':'
+scripts/week5_ml_models.py:2612:80: E501 line too long (82 > 79 characters)
+scripts/week5_ml_models.py:2614:80: E501 line too long (84 > 79 characters)
+scripts/week5_ml_models.py:2616:80: E501 line too long (92 > 79 characters)
+scripts/week5_ml_models.py:2623:80: E501 line too long (89 > 79 characters)
+scripts/week5_ml_models.py:2624:80: E501 line too long (97 > 79 characters)
+scripts/week5_ml_models.py:2653:80: E501 line too long (81 > 79 characters)
+scripts/week5_ml_models.py:2660:80: E501 line too long (115 > 79 characters)
+scripts/week5_ml_models.py:2663:80: E501 line too long (90 > 79 characters)
+scripts/week5_ml_models.py:2669:80: E501 line too long (94 > 79 characters)
+scripts/week5_ml_models.py:2672:80: E501 line too long (86 > 79 characters)
+scripts/week5_ml_models.py:2674:80: E501 line too long (90 > 79 characters)
+scripts/week5_ml_models.py:2676:1: W293 blank line contains whitespace
+scripts/week5_ml_models.py:2698:80: E501 line too long (85 > 79 characters)
+scripts/week5_ml_models.py:2699:80: E501 line too long (81 > 79 characters)
+scripts/week5_ml_models.py:2704:80: E501 line too long (91 > 79 characters)
+scripts/week5_ml_models.py:2721:80: E501 line too long (92 > 79 characters)
+scripts/week5_ml_models.py:2724:80: E501 line too long (88 > 79 characters)
+scripts/week5_ml_models.py:2728:80: E501 line too long (88 > 79 characters)
+scripts/week5_ml_models.py:2741:80: E501 line too long (85 > 79 characters)
+scripts/week5_ml_models.py:2760:80: E501 line too long (81 > 79 characters)
+scripts/week5_ml_models.py:2764:80: E501 line too long (89 > 79 characters)
+scripts/week5_ml_models.py:2770:1: E302 expected 2 blank lines, found 1
+scripts/week5_ml_models.py:2780:80: E501 line too long (86 > 79 characters)
+scripts/week5_ml_models.py:2802:1: E302 expected 2 blank lines, found 1
+scripts/week5_ml_models.py:2813:11: E221 multiple spaces before operator
+scripts/week5_ml_models.py:2821:14: E221 multiple spaces before operator
+scripts/week5_ml_models.py:2830:80: E501 line too long (83 > 79 characters)
+scripts/week5_ml_models.py:2856:14: E221 multiple spaces before operator
+scripts/week5_ml_models.py:2857:14: E221 multiple spaces before operator
+scripts/week5_ml_models.py:2861:16: E221 multiple spaces before operator
+scripts/week5_ml_models.py:2862:16: E221 multiple spaces before operator
+scripts/week5_ml_models.py:2863:14: E221 multiple spaces before operator
+scripts/week5_ml_models.py:2864:14: E221 multiple spaces before operator
+scripts/week5_ml_models.py:2868:15: E221 multiple spaces before operator
+scripts/week5_ml_models.py:2868:80: E501 line too long (96 > 79 characters)
+scripts/week5_ml_models.py:2869:80: E501 line too long (82 > 79 characters)
+scripts/week5_ml_models.py:2870:9: E116 unexpected indentation (comment)
+scripts/week5_ml_models.py:2875:80: E501 line too long (86 > 79 characters)
+scripts/week5_ml_models.py:2881:19: E221 multiple spaces before operator
+scripts/week5_ml_models.py:2881:80: E501 line too long (90 > 79 characters)
+scripts/week5_ml_models.py:2882:80: E501 line too long (80 > 79 characters)
+scripts/week5_ml_models.py:2883:9: E116 unexpected indentation (comment)
+scripts/week5_ml_models.py:2892:80: E501 line too long (100 > 79 characters)
+scripts/week5_ml_models.py:2909:80: E501 line too long (93 > 79 characters)
+scripts/week5_ml_models.py:2910:80: E501 line too long (89 > 79 characters)
+scripts/week5_ml_models.py:2913:1: W293 blank line contains whitespace
+scripts/week5_ml_models.py:2940:80: E501 line too long (94 > 79 characters)
+scripts/week5_ml_models.py:2945:12: E221 multiple spaces before operator
+scripts/week5_ml_models.py:2948:13: E221 multiple spaces before operator
+scripts/week5_ml_models.py:2956:13: E221 multiple spaces before operator
+scripts/week5_ml_models.py:2956:80: E501 line too long (93 > 79 characters)
+scripts/week5_ml_models.py:2957:80: E501 line too long (111 > 79 characters)
+scripts/week5_ml_models.py:2958:15: E221 multiple spaces before operator
+scripts/week5_ml_models.py:2959:32: E127 continuation line over-indented for visual indent
+scripts/week5_ml_models.py:2965:80: E501 line too long (85 > 79 characters)
+scripts/week5_ml_models.py:2996:5: E303 too many blank lines (2)
+scripts/week5_ml_models.py:2996:80: E501 line too long (90 > 79 characters)
+scripts/week5_ml_models.py:2997:80: E501 line too long (101 > 79 characters)
+scripts/week5_ml_models.py:2998:80: E501 line too long (114 > 79 characters)
+scripts/week5_ml_models.py:3001:13: E221 multiple spaces before operator
+scripts/week5_ml_models.py:3018:80: E501 line too long (91 > 79 characters)
+scripts/week5_ml_models.py:3054:80: E501 line too long (82 > 79 characters)
+scripts/week5_ml_models.py:3069:1: E303 too many blank lines (3)

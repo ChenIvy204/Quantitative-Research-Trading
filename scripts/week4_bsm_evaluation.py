@@ -1441,7 +1441,7 @@ def main() -> None:
         eval_df,
         REPORTS_DIR / "week4_bsm_pcp_validation.png"
     )
-    term_mismatch_df = analyze_and_plot_term_mismatch(
+    analyze_and_plot_term_mismatch(
         eval_df,
         REPORTS_DIR / "week4_bsm_term_mismatch_analysis.png",
         PROCESSED_DIR / versioned("week4_bsm_term_mismatch_metrics", "csv")
