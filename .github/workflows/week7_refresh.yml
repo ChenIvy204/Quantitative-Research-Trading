@@ -2,17 +2,6 @@ name: Week 7 Market Data Refresh
 
 on:
   workflow_dispatch:
-  schedule:
-    - cron: "0 3 * * *"
-  push:
-    branches:
-      - main
-    paths:
-      - "scripts/week7_app.py"
-      - "scripts/week7_toolkit.py"
-      - "scripts/apis.py"
-      - "requirements.txt"
-      - ".github/workflows/week7_refresh.yml"
 
 jobs:
   refresh-week7-data:

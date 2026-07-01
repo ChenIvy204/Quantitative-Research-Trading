@@ -179,7 +179,6 @@ def _match_vol_to_maturity(t_years: float) -> str:
 
 
 def load_feature_frame() -> pd.DataFrame:
-    refresh_market_data_if_stale()
     raw_df = load_market_data()
     feat_df = build_features(raw_df)
     required = [col for col in get_pricing_feature_columns() if col in feat_df.columns]

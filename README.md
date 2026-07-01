@@ -197,9 +197,9 @@ The Week 7 workflow writes sensitivity, scenario stress, SHAP summary, and repor
 
 There are two GitHub Actions workflows:
 
-- [.github/workflows/preprocess.yml](.github/workflows/preprocess.yml) runs the full pipeline daily at 02:00 UTC and on pushes to `main`
-- [.github/workflows/week7_refresh.yml](.github/workflows/week7_refresh.yml) refreshes market data and rebuilds the Week 7 outputs daily at 03:00 UTC and on pushes to `main`
-- Both workflows can also be triggered manually from the GitHub Actions tab via `workflow_dispatch`
+- [.github/workflows/preprocess.yml](.github/workflows/preprocess.yml) runs the full pipeline manually via `workflow_dispatch`
+- [.github/workflows/week7_refresh.yml](.github/workflows/week7_refresh.yml) refreshes market data and rebuilds the Week 7 outputs manually via `workflow_dispatch`
+- Both workflows no longer run on a schedule or on pushes to `main`
 
 Both workflows expect these repository secrets:
 
